@@ -39,6 +39,11 @@ UNTESTED_GENERATED_CURL_EXAMPLES = {
     "create-constructor-groups-video-call",
     # Would need Nextcloud Talk server configured to test this endpoint.
     "create-nextcloud-talk-video-call",
+    # The avatar endpoints have special curl examples.
+    "get-user-avatar",
+    "get-user-avatar-by-email",
+    "get-user-medium-avatar",
+    "get-user-medium-avatar-by-email",
 }
 
 

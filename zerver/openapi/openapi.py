@@ -349,6 +349,10 @@ def get_openapi_paths() -> set[str]:
     return set(openapi_spec.openapi()["paths"].keys())
 
 
+def is_avatar_endpoint(path: str, method: str) -> bool:
+    return path.startswith("/avatar/") and method.upper() == "GET"
+
+
 NO_EXAMPLE = object()
 
 

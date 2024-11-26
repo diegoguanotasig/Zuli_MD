@@ -36,6 +36,7 @@ from zerver.openapi.openapi import (
     get_openapi_summary,
     get_parameters_description,
     get_responses_description,
+    is_avatar_endpoint,
     openapi_spec,
 )
 
@@ -215,6 +216,11 @@ def curl_method_arguments(
     else:
         url = f"{api_url}/v1{expected_endpoint}"
 
+    if is_avatar_endpoint(endpoint, method):
+        # Avatar endpoints redirects to the requested avatar URL, so we just need
+        # to show the details in the response header.
+        return ["-si", url]
+
     # We also include the -sS verbosity arguments here.
     method = method.upper()
     valid_methods = ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
@@ -290,8 +296,9 @@ def generate_curl_example(
         "/jwt/fetch_api_key:post",
         "/dev_list_users:get",
     ]
+    public_avatar_endpoints = ["/avatar/{user_id}:get", "/avatar/{user_id}/medium:get"]
     lines = []
-    if operation in insecure_operations:
+    if operation in insecure_operations + public_avatar_endpoints:
         lines.append("```curl")
     else:
         lines.append("{!curl-auth-credentials.md!}\n\n```curl")
@@ -329,7 +336,7 @@ def generate_curl_example(
                 "Unhandled global securityScheme. Please update the code to handle this scheme."
             )
     elif operation_security == []:
-        if operation in insecure_operations:
+        if operation in insecure_operations + public_avatar_endpoints:
             authentication_required = False
         else:
             raise AssertionError(
@@ -345,7 +352,8 @@ def generate_curl_example(
         auth_email = "ZULIP_ORG_ID" if is_zilencer_endpoint else DEFAULT_AUTH_EMAIL
         auth_api_key = "ZULIP_ORG_KEY" if is_zilencer_endpoint else DEFAULT_AUTH_API_KEY
         lines.append("    -u " + shlex.quote(f"{auth_email}:{auth_api_key}"))
-
+    if is_avatar_endpoint(endpoint, method):
+        lines.append("    | grep -i ^location:")
     for parameter in parameters:
         if parameter.kind == "path":
             continue
