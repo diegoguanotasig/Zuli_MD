@@ -26,6 +26,7 @@ from zerver.openapi.openapi import (
     NO_EXAMPLE,
     Parameter,
     check_additional_imports,
+    check_non_api_v1_or_json_pattern,
     check_requires_administrator,
     check_requires_owner,
     generate_openapi_fixture,
@@ -205,10 +206,17 @@ def render_javascript_code_example(
     return code_example
 
 
-def curl_method_arguments(endpoint: str, method: str, api_url: str) -> list[str]:
+def curl_method_arguments(
+    expected_endpoint: str, endpoint: str, method: str, api_url: str
+) -> list[str]:
+    if check_non_api_v1_or_json_pattern(endpoint, method):
+        api_url = api_url.removesuffix("/api")
+        url = f"{api_url}{expected_endpoint}"
+    else:
+        url = f"{api_url}/v1{expected_endpoint}"
+
     # We also include the -sS verbosity arguments here.
     method = method.upper()
-    url = f"{api_url}/v1{endpoint}"
     valid_methods = ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
     if method == "GET":
         # Then we need to make sure that each -d option translates to becoming
@@ -307,7 +315,10 @@ def generate_curl_example(
         format_dict[parameter.name] = example_value
     example_endpoint = endpoint.format_map(format_dict)
 
-    curl_first_line_parts = ["curl", *curl_method_arguments(example_endpoint, method, api_url)]
+    curl_first_line_parts = [
+        "curl",
+        *curl_method_arguments(example_endpoint, endpoint, method, api_url),
+    ]
     lines.append(shlex.join(curl_first_line_parts))
 
     if operation_security is None:
@@ -519,12 +530,21 @@ class APIHeaderPreprocessor(BasePreprocessor):
         path, method = function.rsplit(":", 1)
         raw_title = get_openapi_summary(path, method)
         description_dict = get_openapi_description(path, method)
+
+        if check_non_api_v1_or_json_pattern(path, method):
+            # For api endpoints not in v1_api_and_json_patterns,
+            # exclude the  "api/v1" string from the API path.
+            zulip_url = str(self.api_url).removesuffix("/api")
+            path_method_string = f"`{method.upper()} {zulip_url}{path}`"
+        else:
+            path_method_string = f"`{method.upper()} {self.api_url}/v1{path}`"
+
         return [
             *("# " + line for line in raw_title.splitlines()),
             *(["{!api-admin-only.md!}"] if check_requires_administrator(path, method) else []),
             *(["{!api-owner-only.md!}"] if check_requires_owner(path, method) else []),
             "",
-            f"`{method.upper()} {self.api_url}/v1{path}`",
+            path_method_string,
             "",
             *description_dict.splitlines(),
         ]
