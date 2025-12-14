@@ -310,6 +310,7 @@ function update_form_for_field_type_selection(): void {
             $("#profile_field_hint").val(default_hint);
             break;
         }
+        case field_types.SELECT_MULTIPLE.id:
         case field_types.SELECT.id: {
             $("#profile_field_choices_row").show();
         }
@@ -619,7 +620,7 @@ function open_custom_profile_field_edit_form_modal(this: HTMLElement): void {
         field_data = JSON.parse(field.field_data);
     }
     let choices: FieldChoice[] = [];
-    if (field.type === field_types.SELECT.id) {
+    if (field.type === field_types.SELECT.id || field.type === field_types.SELECT_MULTIPLE.id) {
         const select_field_data = settings_components.select_field_data_schema.parse(field_data);
         choices = parse_field_choices_from_field_data(select_field_data);
     }
@@ -635,6 +636,7 @@ function open_custom_profile_field_edit_form_modal(this: HTMLElement): void {
             editable_by_user: field.editable_by_user,
             use_for_user_matching: field.use_for_user_matching,
             is_select_field: field.type === field_types.SELECT.id,
+            is_multi_select_field: field.type === field_types.SELECT_MULTIPLE.id,
             is_external_account_field: field.type === field_types.EXTERNAL_ACCOUNT.id,
             valid_to_display_in_summary: is_valid_to_display_in_summary(field.type),
             valid_to_use_for_user_matching: is_valid_to_use_for_user_matching(field.type),
@@ -656,7 +658,7 @@ function open_custom_profile_field_edit_form_modal(this: HTMLElement): void {
                 .addClass("display_in_profile_summary_tooltip disabled_label");
         }
 
-        if (field.type === field_types.SELECT.id) {
+        if (field.type === field_types.SELECT.id || field.type === field_types.SELECT_MULTIPLE.id) {
             set_up_select_field_edit_form($profile_field_form, field);
         }
 
@@ -736,7 +738,11 @@ function open_custom_profile_field_edit_form_modal(this: HTMLElement): void {
             dialog_widget.submit_api_request(channel.patch, url, data, opts);
         }
 
-        if (field.type === field_types.SELECT.id && data["field_data"] !== undefined) {
+        if (
+            (field.type === field_types.SELECT.id ||
+                field.type === field_types.SELECT_MULTIPLE.id) &&
+            data["field_data"] !== undefined
+        ) {
             const new_values = new Set(
                 Object.keys(
                     settings_components.select_field_data_schema.parse(
@@ -881,7 +887,11 @@ export function do_populate_profile_fields(profile_fields_data: CustomProfileFie
         },
         modifier_html(profile_field) {
             let choices: FieldChoice[] = [];
-            if (profile_field.field_data && profile_field.type === field_types.SELECT.id) {
+            if (
+                profile_field.field_data &&
+                (profile_field.type === field_types.SELECT.id ||
+                    profile_field.type === field_types.SELECT_MULTIPLE.id)
+            ) {
                 const field_data = settings_components.select_field_data_schema.parse(
                     JSON.parse(profile_field.field_data),
                 );
