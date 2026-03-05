@@ -74,7 +74,7 @@ from zerver.lib.user_groups import (
 from zerver.lib.users import user_ids_to_users
 from zerver.models import EmailChangeStatus, RealmAuditLog, UserBaseSettings, UserProfile
 from zerver.models.realm_audit_logs import AuditLogEventType
-from zerver.models.realms import avatar_changes_disabled, name_changes_disabled
+from zerver.models.realms import avatar_changes_disabled
 from zerver.models.users import ResolvedTopicNoticeAutoReadPolicyEnum
 from zerver.views.auth import redirect_to_deactivation_notice
 from zproject.backends import check_password_strength, email_belongs_to_ldap
@@ -105,6 +105,13 @@ def validate_email_change_request(user_profile: UserProfile, new_email: str) -> 
         )
     except ValidationError as e:
         raise JsonableError(e.message)
+
+
+def own_name_changes_disabled(user_profile: UserProfile) -> bool:
+    return not user_profile.is_realm_admin and (
+        settings.NAME_CHANGES_DISABLED
+        or not user_profile.has_permission("can_change_own_name_group")
+    )
 
 
 def confirm_email_change_get(request: HttpRequest, confirmation_key: str) -> HttpResponse:
@@ -529,7 +536,7 @@ def json_change_settings(
             do_start_email_change_process(user_profile, new_email)
 
     if full_name is not None and user_profile.full_name != full_name:
-        if name_changes_disabled(user_profile.realm) and not user_profile.is_realm_admin:
+        if own_name_changes_disabled(user_profile):
             # Failingly silently is fine -- they can't do it through the UI, so
             # they'd have to be trying to break the rules.
             pass
