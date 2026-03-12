@@ -45,7 +45,9 @@
     background: var(--gradient-custom-swatch);
 }
 
-.color-picker-popover .message-header-contents {
+.color-picker-popover .message_header .message-header-contents {
+    grid-template-areas: "stream-label .";
+    grid-template-columns: 1fr auto;
     border: none;
 }
 
