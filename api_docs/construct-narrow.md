@@ -58,6 +58,10 @@ as an empty string.
 
 ## Changes
 
+* In Zulip 12.0 (feature level ZF-3375de), support was added
+  for the `channels:archived` narrow operator, which searches
+  for messages in the user's archived channels.
+
 * In Zulip 12.0 (feature level 446), add the `mentions` operator,
   matching messages that contain a direct personal mention of the
   specified user.
