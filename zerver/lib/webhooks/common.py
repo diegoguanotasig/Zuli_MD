@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Annotated, Any, TypeAlias
 from urllib.parse import unquote
 
+from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.http import HttpRequest
 from django.utils.crypto import constant_time_compare
@@ -31,7 +32,7 @@ from zerver.lib.exceptions import (
 from zerver.lib.request import RequestNotes
 from zerver.lib.send_email import FromAddress
 from zerver.lib.typed_endpoint import ApiParamConfig, typed_endpoint
-from zerver.lib.validator import check_bool, check_string
+from zerver.lib.validator import WildValue, check_bool, check_string
 from zerver.models import Realm, UserProfile
 from zerver.models.custom_profile_fields import CustomProfileField, CustomProfileFieldValue
 
@@ -60,6 +61,7 @@ class PresetUrlOption(str, Enum):
     BRANCHES = "branches"
     IGNORE_PRIVATE_REPOSITORIES = "ignore_private_repositories"
     CHANNEL_MAPPING = "mapping"
+    CUSTOM_FIELDS = "custom_fields"
 
 
 @dataclass
@@ -98,6 +100,12 @@ class WebhookUrlOption:
                     validator=check_bool,
                 )
             case PresetUrlOption.CHANNEL_MAPPING:
+                return cls(
+                    name=config.value,
+                    label="",
+                    validator=check_string,
+                )
+            case PresetUrlOption.CUSTOM_FIELDS:
                 return cls(
                     name=config.value,
                     label="",
@@ -210,6 +218,49 @@ def check_send_webhook_message(
             # non-existent stream, so we don't need to re-raise it since it
             # clutters up webhook-errors.log
             return None
+
+
+def get_value_from_path(
+    payload: WildValue, path: list[str], default: Any | None = ""
+) -> WildValue:
+    try:
+        for key in path:
+            if isinstance(payload.value, list):
+                payload = payload[int(key)]
+            else:
+                payload = payload[key]
+    except (AttributeError, KeyError, TypeError, ValidationError, ValueError, IndexError):
+        return WildValue("default", default)
+    return payload
+
+
+def get_formatted_payload_field_lines(
+    payload: WildValue,
+    configured_fields: str,
+    *,
+    base_path: list[str] | None = None,
+    field_aliases: dict[str, list[str]] | None = None,
+) -> str:
+    lines = []
+    base_path = base_path or []
+    field_aliases = field_aliases or {}
+
+    for entry in configured_fields.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+
+        path = field_aliases.get(entry, entry.split("."))
+        raw_value = get_value_from_path(payload, [*base_path, *path], default=None).value
+        if raw_value is None:
+            continue
+
+        value = str(raw_value)
+        if value:
+            label = entry.split(".")[0]
+            lines.append(f"* **{label.capitalize()}**: {value}")
+
+    return "\n".join(lines)
 
 
 def standardize_headers(input_headers: None | dict[str, Any]) -> dict[str, str]:

@@ -3,7 +3,6 @@ import re
 import string
 from collections.abc import Callable
 
-from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 
@@ -12,7 +11,11 @@ from zerver.lib.exceptions import AnomalousWebhookPayloadError, UnsupportedWebho
 from zerver.lib.response import json_success
 from zerver.lib.typed_endpoint import JsonBodyPayload, typed_endpoint
 from zerver.lib.validator import WildValue, check_none_or, check_string
-from zerver.lib.webhooks.common import check_send_webhook_message
+from zerver.lib.webhooks.common import (
+    check_send_webhook_message,
+    get_formatted_payload_field_lines,
+    get_value_from_path,
+)
 from zerver.models import Realm, UserProfile
 from zerver.models.users import get_user_by_delivery_email
 
@@ -27,6 +30,15 @@ IGNORED_EVENTS = [
     "worklog_created",
     "worklog_updated",
 ]
+
+# Whitelist of known safe shorthand aliases -> full dot-paths within issue.fields
+CUSTOM_FIELD_ALIASES: dict[str, list[str]] = {
+    "project": ["project", "name"],
+    "version": ["fixVersions", "0", "name"],
+    "type": ["issuetype", "name"],
+    "reporter": ["reporter", "displayName"],
+    "component": ["components", "0", "name"],
+}
 
 
 def guess_zulip_user_from_jira(jira_username: str, realm: Realm) -> UserProfile | None:
@@ -95,15 +107,6 @@ def convert_jira_markup(content: str, realm: Realm) -> str:
     return content
 
 
-def get_in(payload: WildValue, keys: list[str], default: str = "") -> WildValue:
-    try:
-        for key in keys:
-            payload = payload[key]
-    except (AttributeError, KeyError, TypeError, ValidationError):
-        return WildValue("default", default)
-    return payload
-
-
 def get_issue_string(
     payload: WildValue, issue_id: str | None = None, with_title: bool = False
 ) -> str:
@@ -119,7 +122,7 @@ def get_issue_string(
         text = issue_id
 
     base_url = re.match(
-        r"(.*)\/rest\/api/.*", get_in(payload, ["issue", "self"]).tame(check_string)
+        r"(.*)\/rest\/api/.*", get_value_from_path(payload, ["issue", "self"]).tame(check_string)
     )
     if base_url and len(base_url.groups()):
         return f"[{text}]({base_url.group(1)}/browse/{issue_id})"
@@ -138,7 +141,7 @@ def get_assignee_mention(assignee_email: str, realm: Realm) -> str:
 
 
 def get_issue_author(payload: WildValue) -> str:
-    return get_in(payload, ["user", "displayName"]).tame(check_string)
+    return get_value_from_path(payload, ["user", "displayName"]).tame(check_string)
 
 
 def get_issue_id(payload: WildValue) -> str:
@@ -151,7 +154,7 @@ def get_issue_id(payload: WildValue) -> str:
         # Users who want better formatting can upgrade Jira.
         return payload["comment"]["self"].tame(check_string).split("/")[-3]
 
-    return get_in(payload, ["issue", "key"]).tame(check_string)
+    return get_value_from_path(payload, ["issue", "key"]).tame(check_string)
 
 
 def get_issue_title(payload: WildValue) -> str:
@@ -164,7 +167,7 @@ def get_issue_title(payload: WildValue) -> str:
         # Users who want better formatting can upgrade Jira.
         return "Upgrade Jira to get the issue title here."
 
-    return get_in(payload, ["issue", "fields", "summary"]).tame(check_string)
+    return get_value_from_path(payload, ["issue", "fields", "summary"]).tame(check_string)
 
 
 def get_issue_topic(payload: WildValue) -> str:
@@ -203,12 +206,12 @@ def handle_updated_issue_event(payload: WildValue, user_profile: UserProfile) ->
     # Reassigned, commented, reopened, and resolved events are all bundled
     # into this one 'updated' event type, so we try to extract the meaningful
     # event that happened
-    issue_id = get_in(payload, ["issue", "key"]).tame(check_string)
+    issue_id = get_value_from_path(payload, ["issue", "key"]).tame(check_string)
     issue = get_issue_string(payload, issue_id, True)
 
-    assignee_email = get_in(payload, ["issue", "fields", "assignee", "emailAddress"], "").tame(
-        check_string
-    )
+    assignee_email = get_value_from_path(
+        payload, ["issue", "fields", "assignee", "emailAddress"], ""
+    ).tame(check_string)
     assignee_mention = get_assignee_mention(assignee_email, user_profile.realm)
 
     if assignee_mention != "":
@@ -231,7 +234,7 @@ def handle_updated_issue_event(payload: WildValue, user_profile: UserProfile) ->
             author = get_issue_author(payload)
 
         content = f"{author} {verb} {issue}{assignee_blurb}"
-        comment = get_in(payload, ["comment", "body"]).tame(check_string)
+        comment = get_value_from_path(payload, ["comment", "body"]).tame(check_string)
         if comment:
             comment = convert_jira_markup(comment, user_profile.realm)
             content = f"{content}:\n\n``` quote\n{comment}\n```"
@@ -262,9 +265,11 @@ def handle_updated_issue_event(payload: WildValue, user_profile: UserProfile) ->
                     )
 
         elif sub_event == "issue_transited":
-            from_field_string = get_in(payload, ["transition", "from_status"]).tame(check_string)
+            from_field_string = get_value_from_path(payload, ["transition", "from_status"]).tame(
+                check_string
+            )
             target_field_string = "**{}**".format(
-                get_in(payload, ["transition", "to_status"]).tame(check_string)
+                get_value_from_path(payload, ["transition", "to_status"]).tame(check_string)
             )
             if target_field_string or from_field_string:
                 content = add_change_info(content, "status", from_field_string, target_field_string)
@@ -272,7 +277,16 @@ def handle_updated_issue_event(payload: WildValue, user_profile: UserProfile) ->
     return content
 
 
-def handle_created_issue_event(payload: WildValue, user_profile: UserProfile) -> str:
+def get_custom_field_lines(payload: WildValue, custom_fields: str) -> str:
+    return get_formatted_payload_field_lines(
+        payload,
+        custom_fields,
+        base_path=["issue", "fields"],
+        field_aliases=CUSTOM_FIELD_ALIASES,
+    )
+
+
+def handle_created_issue_event(payload, user_profile, custom_fields: str = "") -> str:
     template = """
 {author} created {issue_string}:
 
@@ -280,14 +294,23 @@ def handle_created_issue_event(payload: WildValue, user_profile: UserProfile) ->
 * **Assignee**: {assignee}
 """.strip()
 
-    return template.format(
+    template = template.format(
         author=get_issue_author(payload),
         issue_string=get_issue_string(payload, with_title=True),
-        priority=get_in(payload, ["issue", "fields", "priority", "name"]).tame(check_string),
-        assignee=get_in(payload, ["issue", "fields", "assignee", "displayName"], "no one").tame(
+        priority=get_value_from_path(payload, ["issue", "fields", "priority", "name"]).tame(
             check_string
         ),
+        assignee=get_value_from_path(
+            payload, ["issue", "fields", "assignee", "displayName"], "no one"
+        ).tame(check_string),
     )
+
+    if custom_fields:
+        extra = get_custom_field_lines(payload, custom_fields)
+        if extra:
+            template += f"\n{extra}"
+
+    return template
 
 
 def handle_deleted_issue_event(payload: WildValue, user_profile: UserProfile) -> str:
@@ -354,6 +377,7 @@ def api_jira_webhook(
     request: HttpRequest,
     user_profile: UserProfile,
     *,
+    custom_fields: str = "",
     payload: JsonBodyPayload[WildValue],
 ) -> HttpResponse:
     event = get_event_type(payload)
@@ -370,7 +394,10 @@ def api_jira_webhook(
         raise UnsupportedWebhookEventTypeError(event)
 
     topic_name = get_issue_topic(payload)
-    content: str = content_func(payload, user_profile)
+    if event == "jira:issue_created":
+        content = handle_created_issue_event(payload, user_profile, custom_fields=custom_fields)
+    else:
+        content = content_func(payload, user_profile)
 
     check_send_webhook_message(
         request, user_profile, topic_name, content, event, unquote_url_parameters=True
