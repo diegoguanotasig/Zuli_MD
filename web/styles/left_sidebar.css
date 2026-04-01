@@ -821,7 +821,8 @@
     }
 }
 
-.stream-list-toggle-inactive-or-muted-channels.highlighted_row {
+.stream-list-toggle-inactive-or-muted-channels.highlighted_row,
+.stream-list-toggle-inactive-or-muted-channels:focus-visible {
     outline: 2px solid var(--color-outline-focus);
     outline-offset: -2px;
     background-color: var(--color-background-sidebar-action-heading-hover);
@@ -2133,6 +2134,15 @@ li.active-sub-filter {
         /* Show dots on touchscreens in a less distracting,
            lighter shade. */
         color: var(--color-vdots-hint);
+    }
+}
+
+.bottom_left_row .sidebar-menu-icon,
+.bottom_left_row .channel-new-topic-button,
+.top_left_row .sidebar-menu-icon,
+.stream-list-section-container .sidebar-menu-icon {
+    &:focus-visible {
+        outline: 2px solid var(--color-outline-focus);
     }
 }
 
