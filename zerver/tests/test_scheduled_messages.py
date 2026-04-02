@@ -185,6 +185,14 @@ class ScheduledMessageTest(ZulipTestCase):
             scheduled_message, recipient=direct_message_group.recipient
         )
 
+        # Verify editing an already-sent scheduled message fails.
+        new_delivery_timestamp = int((timezone_now() + timedelta(minutes=10)).timestamp())
+        updated_response = self.client_patch(
+            f"/json/scheduled_messages/{scheduled_message.id}",
+            {"scheduled_delivery_timestamp": new_delivery_timestamp},
+        )
+        self.assert_json_error(updated_response, "Scheduled message was already sent")
+
     def test_successful_deliver_direct_scheduled_message_to_self_using_direct_message_group(
         self,
     ) -> None:
