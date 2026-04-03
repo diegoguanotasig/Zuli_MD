@@ -1307,3 +1307,61 @@ class TestCreateStreams(ZulipTestCase):
         self.assertNotEqual(
             stream_1.can_add_subscribers_group_id, stream_2.can_add_subscribers_group_id
         )
+
+    def test_create_stream_with_push_notifications_enabled(self) -> None:
+        """An admin can set push_notifications_enabled=True when creating a stream.
+        A non-admin cannot."""
+        admin = self.example_user("iago")
+        non_admin = self.example_user("hamlet")
+        realm = admin.realm
+
+        # add_subscriptions_backend uses @transaction.atomic(savepoint=False), so
+        # wrap the expected-failure call in a savepoint to avoid aborting the
+        # test transaction.
+        self.login_user(non_admin)
+        with self.artificial_transaction_savepoint():
+            result = self.client_post(
+                "/json/users/me/subscriptions",
+                {
+                    "subscriptions": orjson.dumps([{"name": "push_create_nonadmin"}]).decode(),
+                    "push_notifications_enabled": orjson.dumps(True).decode(),
+                },
+            )
+        self.assert_json_error(result, "Insufficient permission")
+
+        # Same guard on /channels/create.
+        with self.artificial_transaction_savepoint():
+            result = self.client_post(
+                "/json/channels/create",
+                {
+                    "name": "push_create_nonadmin_v2",
+                    "subscribers": orjson.dumps([]).decode(),
+                    "push_notifications_enabled": orjson.dumps(True).decode(),
+                },
+            )
+        self.assert_json_error(result, "Insufficient permission")
+
+        self.login_user(admin)
+        result = self.client_post(
+            "/json/users/me/subscriptions",
+            {
+                "subscriptions": orjson.dumps([{"name": "push_create_admin"}]).decode(),
+                "push_notifications_enabled": orjson.dumps(True).decode(),
+            },
+        )
+        self.assert_json_success(result)
+        stream = get_stream("push_create_admin", realm)
+        self.assertTrue(stream.push_notifications_enabled)
+
+        # Verify the /channels/create endpoint also persists the field for admins.
+        result = self.client_post(
+            "/json/channels/create",
+            {
+                "name": "push_create_via_channels_api",
+                "subscribers": orjson.dumps([]).decode(),
+                "push_notifications_enabled": orjson.dumps(True).decode(),
+            },
+        )
+        self.assert_json_success(result)
+        stream = get_stream("push_create_via_channels_api", realm)
+        self.assertTrue(stream.push_notifications_enabled)
