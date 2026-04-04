@@ -553,6 +553,7 @@ export function make_compose_box_original_size(): void {
     // when compose box was made full screen
     autosize($("textarea#compose-textarea"));
 
+    $(".preview_message_area").css("min-height", "");
     $("textarea#compose-textarea").trigger("focus");
 }
 
