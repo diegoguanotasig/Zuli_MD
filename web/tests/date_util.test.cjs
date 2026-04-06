@@ -2,7 +2,16 @@
 
 const assert = require("node:assert/strict");
 
-const {format, startOfDay, getUnixTime, parseISO, isEqual} = require("date-fns");
+const {
+    format,
+    startOfDay,
+    getUnixTime,
+    parseISO,
+    isEqual,
+    subDays,
+    subWeeks,
+    subMonths,
+} = require("date-fns");
 
 const {clock, zrequire} = require("./lib/namespace.cjs");
 const {run_test} = require("./lib/test.cjs");
@@ -13,33 +22,41 @@ run_test("get_default_search_suggestions", () => {
     const today = new Date(2024, 0, 15, 2, 0, 0);
     clock.setSystemTime(today.getTime());
 
-    const suggestions = date_util.get_default_search_suggestions();
-    const [today_suggestion, yesterday_suggestion, day_before_yesterday_suggestion] = suggestions;
+    const [today_sug, yesterday_sug, day_before_sug, week_ago_sug, month_ago_sug] =
+        date_util.get_default_search_suggestions();
 
-    const today_date_str = format(today, "yyyy-MM-dd");
-    assert.equal(today_suggestion, `date:${today_date_str}`);
+    const expected = (date) => `date:${format(date, "yyyy-MM-dd")}`;
 
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
+    assert.equal(today_sug, expected(today));
+    assert.equal(yesterday_sug, expected(subDays(today, 1)));
+    assert.equal(day_before_sug, expected(subDays(today, 2)));
+    assert.equal(week_ago_sug, expected(subWeeks(today, 1)));
+    assert.equal(month_ago_sug, expected(subMonths(today, 1)));
 
-    const yesterday_date_str = format(yesterday, "yyyy-MM-dd");
-    assert.equal(yesterday_suggestion, `date:${yesterday_date_str}`);
-
-    const day_before_yesterday = new Date();
-    day_before_yesterday.setDate(today.getDate() - 2);
-    const day_before_yesterday_date_str = format(day_before_yesterday, "yyyy-MM-dd");
-    assert.equal(day_before_yesterday_suggestion, `date:${day_before_yesterday_date_str}`);
     clock.reset();
 });
 
 run_test("get_suggestions_via_smart_parsing", () => {
     const today = parseISO("2026-03-31");
     clock.setSystemTime(today.getTime());
-    const default_suggestions = ["date:2026-03-31", "date:2026-03-30", "date:2026-03-29"];
-    // Partially matching dates must give back default suggestions
-    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("20"), default_suggestions);
+    const default_suggestions = {
+        today: "date:2026-03-31",
+        yesterday: "date:2026-03-30",
+        day_before_yesterday: "date:2026-03-29",
+        a_week_ago: "date:2026-03-24",
+        a_month_ago: "date:2026-02-28",
+    };
 
-    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2026"), default_suggestions);
+    // Partially matching dates must give back default suggestions
+    assert.deepEqual(
+        date_util.get_suggestions_via_smart_parsing("20"),
+        Object.values(default_suggestions),
+    );
+
+    assert.deepEqual(
+        date_util.get_suggestions_via_smart_parsing("2026"),
+        Object.values(default_suggestions),
+    );
 
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2026-03-3"), [
         "date:2026-03-31",
@@ -47,7 +64,10 @@ run_test("get_suggestions_via_smart_parsing", () => {
     ]);
 
     // Empty operand should give back all default suggestions
-    assert.deepEqual(date_util.get_suggestions_via_smart_parsing(""), default_suggestions);
+    assert.deepEqual(
+        date_util.get_suggestions_via_smart_parsing(""),
+        Object.values(default_suggestions),
+    );
 
     // For coverage.
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("-"), []);
@@ -55,15 +75,33 @@ run_test("get_suggestions_via_smart_parsing", () => {
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("-01-01"), ["date:2026-01-01"]);
 
     // Get suggestions for trailing hyphens/zeros
-    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2026-"), default_suggestions);
+    assert.deepEqual(
+        date_util.get_suggestions_via_smart_parsing("2026-"),
+        Object.values(default_suggestions),
+    );
 
-    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2026-0"), default_suggestions);
+    assert.deepEqual(
+        date_util.get_suggestions_via_smart_parsing("2026-0"),
+        Object.values(default_suggestions),
+    );
 
-    // operand which doesn't match any default suggestions.
+    // operand which doesn't match any default suggestions and pill labels.
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2023-02"), ["date:2023-02-01"]);
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2023-02-0"), ["date:2023-02-01"]);
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2023-0-"), ["date:2023-01-01"]);
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("2023"), ["date:2023-01-01"]);
+
+    // operand doesn't match any default suggestions but matches pill labels.
+    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("to"), [
+        default_suggestions.today,
+    ]);
+    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("a "), [
+        default_suggestions.a_week_ago,
+        default_suggestions.a_month_ago,
+    ]);
+    assert.deepEqual(date_util.get_suggestions_via_smart_parsing("month"), [
+        default_suggestions.a_month_ago,
+    ]);
 
     // Gibberish shouldn't yield any suggestions
     assert.deepEqual(date_util.get_suggestions_via_smart_parsing("lkmvlckakj"), []);
@@ -86,10 +124,24 @@ run_test("get_search_pill_value", () => {
     const today_str = format(today, "yyyy-MM-dd");
     assert.equal(date_util.get_search_pill_value(today_str), "today");
 
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
+    const yesterday = subDays(today, 1);
     const yesterday_str = format(yesterday, "yyyy-MM-dd");
     assert.equal(date_util.get_search_pill_value(yesterday_str), "yesterday");
+
+    const day_before_yesterday = subDays(today, 2);
+    const day_before_yesterday_str = format(day_before_yesterday, "yyyy-MM-dd");
+    assert.equal(
+        date_util.get_search_pill_value(day_before_yesterday_str),
+        day_before_yesterday_str,
+    );
+
+    const a_week_ago = subWeeks(today, 1);
+    const a_week_ago_str = format(a_week_ago, "yyyy-MM-dd");
+    assert.equal(date_util.get_search_pill_value(a_week_ago_str), "a week ago");
+
+    const a_month_ago = subMonths(today, 1);
+    const a_month_ago_str = format(a_month_ago, "yyyy-MM-dd");
+    assert.equal(date_util.get_search_pill_value(a_month_ago_str), "a month ago");
 
     // Some other valid date should be returned unchanged.
     assert.equal(date_util.get_search_pill_value("2000-01-01"), "2000-01-01");

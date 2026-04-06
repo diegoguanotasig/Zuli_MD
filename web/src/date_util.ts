@@ -1,36 +1,89 @@
-import {format, getUnixTime, isValid, parse, parseISO, startOfDay} from "date-fns";
+import {
+    format,
+    getUnixTime,
+    isValid,
+    parse,
+    parseISO,
+    startOfDay,
+    subDays,
+    subMonths,
+    subWeeks,
+} from "date-fns";
 
+import * as common from "./common.ts";
 import type {Suggestion} from "./search_suggestion.ts";
 
-function get_default_dates(): {today: Date; yesterday: Date; day_before_yesterday: Date} {
+function get_default_dates(): {
+    today: Date;
+    yesterday: Date;
+    day_before_yesterday: Date;
+    a_week_ago: Date;
+    a_month_ago: Date;
+} {
     const today = new Date();
-    const yesterday = new Date();
-    const day_before_yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    day_before_yesterday.setDate(today.getDate() - 2);
-    return {today, yesterday, day_before_yesterday};
+    const yesterday = subDays(today, 1);
+    const day_before_yesterday = subDays(today, 2);
+    const a_week_ago = subWeeks(today, 1);
+    const a_month_ago = subMonths(today, 1);
+    return {today, yesterday, day_before_yesterday, a_week_ago, a_month_ago};
 }
 
-export function get_default_search_suggestions(): Suggestion[] {
-    const {today, yesterday, day_before_yesterday} = get_default_dates();
-    const default_suggestions = [
-        {
+type DefaultDates = "today" | "yesterday" | "day_before_yesterday" | "a_week_ago" | "a_month_ago";
+type DateSuggestion = {
+    operator: "date";
+    operand: string;
+    search_pill_value: string;
+    date: Date;
+};
+
+export function get_default_suggestions(): Record<DefaultDates, DateSuggestion> {
+    const {today, yesterday, day_before_yesterday, a_week_ago, a_month_ago} = get_default_dates();
+    const default_suggestions: Record<DefaultDates, DateSuggestion> = {
+        today: {
             operator: "date",
             operand: format(today, "yyyy-MM-dd"),
             search_pill_value: "today",
+            date: today,
         },
-        {
+        yesterday: {
             operator: "date",
             operand: format(yesterday, "yyyy-MM-dd"),
             search_pill_value: "yesterday",
+            date: yesterday,
         },
-        {
+        day_before_yesterday: {
             operator: "date",
             operand: format(day_before_yesterday, "yyyy-MM-dd"),
+            search_pill_value: format(day_before_yesterday, "yyyy-MM-dd"),
+            date: day_before_yesterday,
         },
-    ];
+        a_week_ago: {
+            operator: "date",
+            operand: format(a_week_ago, "yyyy-MM-dd"),
+            search_pill_value: "a week ago",
+            date: a_week_ago,
+        },
+        a_month_ago: {
+            operator: "date",
+            operand: format(a_month_ago, "yyyy-MM-dd"),
+            search_pill_value: "a month ago",
+            date: a_month_ago,
+        },
+    };
+    return default_suggestions;
+}
 
-    return default_suggestions.map((suggestion) => `date:${suggestion.operand}`);
+export function get_default_search_suggestions(search_pill_query?: string): Suggestion[] {
+    const default_suggestions = Object.values(get_default_suggestions());
+    if (search_pill_query === undefined) {
+        return default_suggestions.map((suggestion) => `date:${suggestion.operand}`);
+    }
+
+    const filtered_suggestions = default_suggestions.filter((suggestion) =>
+        common.phrase_match(search_pill_query, suggestion.search_pill_value),
+    );
+
+    return filtered_suggestions.map((suggestion) => `date:${suggestion.operand}`);
 }
 
 export function get_suggestions_via_smart_parsing(operand: string): string[] {
@@ -41,13 +94,21 @@ export function get_suggestions_via_smart_parsing(operand: string): string[] {
 
     const dates = get_default_dates();
     const date_strings = new Set<string>();
+    const filtered_default_suggestions = new Set<string>();
     for (const date of Object.values(dates)) {
         const parsed_date = try_smart_parse_date_operand(operand, date);
         if (parsed_date !== undefined) {
             date_strings.add(format(parsed_date, "yyyy-MM-dd"));
+        } else {
+            // If the operand cannot be parsed to a date, check whether
+            // the operand matches the search pill values for suggestions.
+            for (const suggestion of get_default_search_suggestions(operand)) {
+                filtered_default_suggestions.add(suggestion);
+            }
         }
     }
-    return [...date_strings].map((date_str) => `date:${date_str}`);
+    const date_suggestions = [...date_strings].map((date_str) => `date:${date_str}`);
+    return [...date_suggestions, ...filtered_default_suggestions];
 }
 
 // The goal here is to keep matching a potentially half-formed
@@ -155,12 +216,22 @@ export function get_search_pill_value(operand: string): string {
         return operand;
     }
 
-    const {today, yesterday} = get_default_dates();
-    if (is_same_day(op_date, today)) {
+    const {today, yesterday, a_month_ago, a_week_ago, day_before_yesterday} =
+        get_default_suggestions();
+    if (is_same_day(op_date, today.date)) {
         return "today";
     }
-    if (is_same_day(op_date, yesterday)) {
+    if (is_same_day(op_date, yesterday.date)) {
         return "yesterday";
+    }
+    if (is_same_day(op_date, day_before_yesterday.date)) {
+        return format(op_date, "yyyy-MM-dd");
+    }
+    if (is_same_day(op_date, a_month_ago.date)) {
+        return "a month ago";
+    }
+    if (is_same_day(op_date, a_week_ago.date)) {
+        return "a week ago";
     }
 
     return operand;
