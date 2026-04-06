@@ -379,9 +379,15 @@ def render_curl_example(
         kwargs["include"] = None
         kwargs["exclude"] = None
         if element["type"] == "include":
-            kwargs["include"] = element["parameters"]["enum"]
+            if "parameters" in element:
+                kwargs["include"] = element["parameters"]["enum"]
+            elif "name" in element:
+                kwargs["include"] = [element["name"]]
         if element["type"] == "exclude":
-            kwargs["exclude"] = element["parameters"]["enum"]
+            if "parameters" in element:
+                kwargs["exclude"] = element["parameters"]["enum"]
+            elif "name" in element:  # nocoverage
+                kwargs["exclude"] = [element["name"]]  # nocoverage
         if "description" in element:
             rendered_example.extend(element["description"].splitlines())
         rendered_example += generate_curl_example(endpoint, method, **kwargs)

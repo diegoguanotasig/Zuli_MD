@@ -655,6 +655,20 @@ def create_realm_profile_field(client: Client) -> None:
     validate_against_openapi_schema(result, "/realm/profile_fields", "post", "200")
 
 
+@openapi_test_function("/realm:patch")
+def update_realm(client: Client) -> None:
+    # {code_example|start}
+    request = {
+        "name": "Zulip HQ",
+        "description": "The official organization for Zulip development.",
+        "emails_restricted_to_domains": False,
+    }
+    result = client.call_endpoint(url="/realm", method="PATCH", request=request)
+    print(result)
+    # {code_example|end}
+    validate_against_openapi_schema(result, "/realm", "patch", "200")
+
+
 @openapi_test_function("/realm/filters:post")
 def add_realm_filter(client: Client) -> int:
     # TODO: Switch back to using client.add_realm_filter when python-zulip-api
@@ -2270,6 +2284,7 @@ def test_the_api(client: Client, nonadmin_client: Client, owner_client: Client) 
     test_messages(client, nonadmin_client)
     test_queues(client)
     test_server_organizations(client)
+    update_realm(owner_client)
     test_errors(client)
     test_invitations(client)
     test_welcome_bot_custom_message(client)
