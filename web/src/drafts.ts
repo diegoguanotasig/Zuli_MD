@@ -210,6 +210,7 @@ export const draft_model = (function () {
         if (update_count) {
             set_count(Object.keys(drafts).length);
             update_compose_draft_count();
+            on_draft_update_callback?.();
         }
     }
 
@@ -263,6 +264,12 @@ export const draft_model = (function () {
         deleteDrafts,
     };
 })();
+
+let on_draft_update_callback: (() => void) | undefined;
+
+export function set_on_draft_update(callback: (() => void) | undefined): void {
+    on_draft_update_callback = callback;
+}
 
 export let update_compose_draft_count = (): void => {
     const $count_container = $(".compose-drafts-count-container");
@@ -607,6 +614,7 @@ export function get_last_restorable_draft_based_on_compose_state():
 export type FormattedDraft =
     | {
           is_stream: true;
+          is_sending_saving: boolean;
           draft_id: string;
           stream_name?: string | undefined;
           recipient_bar_color: string;
@@ -621,6 +629,7 @@ export type FormattedDraft =
       }
     | {
           is_stream: false;
+          is_sending_saving: boolean;
           is_dm_with_self?: boolean;
           draft_id: string;
           recipients: string;
@@ -695,6 +704,7 @@ export function format_draft(draft: LocalStorageDraftWithId): FormattedDraft | u
         return {
             draft_id: draft.id,
             is_stream: true,
+            is_sending_saving: draft.is_sending_saving,
             stream_name,
             recipient_bar_color: stream_color.get_recipient_bar_color(draft_stream_color),
             stream_privacy_icon_color:
@@ -715,6 +725,7 @@ export function format_draft(draft: LocalStorageDraftWithId): FormattedDraft | u
         return {
             draft_id: draft.id,
             is_stream: false,
+            is_sending_saving: draft.is_sending_saving,
             has_recipient_data: false,
             recipients: "",
             raw_content: draft.content,
@@ -730,6 +741,7 @@ export function format_draft(draft: LocalStorageDraftWithId): FormattedDraft | u
     return {
         draft_id: draft.id,
         is_stream: false,
+        is_sending_saving: draft.is_sending_saving,
         is_dm_with_self,
         recipients,
         raw_content: draft.content,
