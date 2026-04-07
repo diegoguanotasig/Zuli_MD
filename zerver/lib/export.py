@@ -959,9 +959,8 @@ def get_realm_config() -> Config:
     Config(
         table="zerver_realmexport",
         model=RealmExport,
-        normal_parent=realm_config,
-        include_rows="realm_id__in",
-        exclude=["export_path"],
+        virtual_parent=realm_config,
+        custom_fetch=custom_fetch_realm_exports,
     )
 
     Config(
@@ -1700,6 +1699,16 @@ def custom_fetch_onboarding_usermessage(response: TableData, context: Context) -
         del onboarding_usermessage_obj["flags"]
         onboarding.append(onboarding_usermessage_obj)
     response["zerver_onboardingusermessage"] = onboarding
+
+
+def custom_fetch_realm_exports(response: TableData, context: Context) -> None:
+    realm = context["realm"]
+    rows = list(make_raw(RealmExport.objects.filter(realm=realm)))
+    for row in rows:
+        if row.get("export_path") is not None:
+            row["export_path_purged"] = True
+            del row["export_path"]
+    response["zerver_realmexport"] = rows
 
 
 def fetch_usermessages(
@@ -3136,10 +3145,22 @@ def get_realm_exports_serialized(realm: Realm) -> list[dict[str, Any]]:
     # Exclude exports made via shell. 'acting_user=None', since they
     # aren't supported in the current API format.
     #
+    # We also exclude exports that had their export_path stripped off and
+    # set to None, for the same reason: when successful exports are returned,
+    # they're currently expected to have a valid export_path.
+    #
+    # export_path is stripped away from RealmExport records when they are exported,
+    # so we expect RealmExports with export_path_purged=True in some realms that
+    # have been imported.
+    #
     # TODO: We should return those via the API as well, with an
     # appropriate way to express for who issued them; this requires an
     # API change.
-    all_exports = RealmExport.objects.filter(realm=realm).exclude(acting_user=None)
+    all_exports = (
+        RealmExport.objects.filter(realm=realm)
+        .exclude(acting_user=None)
+        .exclude(export_path_purged=True)
+    )
     exports_dict = {}
     for export in all_exports:
         export_url = None
