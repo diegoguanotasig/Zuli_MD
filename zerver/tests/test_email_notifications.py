@@ -7,7 +7,6 @@ import orjson
 from django.core import mail
 from django.core.mail.message import EmailMultiAlternatives
 from django.test import override_settings
-from django.utils.timezone import now as timezone_now
 from django_auth_ldap.config import LDAPSearch
 
 from zerver.lib.email_notifications import (
@@ -30,6 +29,7 @@ class TestCustomEmails(ZulipTestCase):
         email_subject = "subject_test"
         reply_to = "reply_to_test"
         from_name = "from_name_test"
+        campaign_name = "test_campaign"
 
         with tempfile.NamedTemporaryFile() as markdown_template:
             markdown_template.write(b"# Some heading\n\nSome content\n{{ realm_name }}")
@@ -42,6 +42,7 @@ class TestCustomEmails(ZulipTestCase):
                     "reply_to": reply_to,
                     "subject": email_subject,
                     "from_name": from_name,
+                    "campaign_name": campaign_name,
                 },
             )
         self.assert_length(mail.outbox, 1)
@@ -63,6 +64,7 @@ class TestCustomEmails(ZulipTestCase):
         email_subject = "subject_test"
         reply_to = "reply_to_test"
         from_name = "from_name_test"
+        campaign_name = "test_campaign"
         markdown_template_path = "templates/corporate/policies/index.md"
         send_custom_server_email(
             remote_servers=RemoteZulipServer.objects.all(),
@@ -72,6 +74,7 @@ class TestCustomEmails(ZulipTestCase):
                 "reply_to": reply_to,
                 "subject": email_subject,
                 "from_name": from_name,
+                "campaign_name": campaign_name,
             },
         )
         self.assert_length(mail.outbox, 1)
@@ -96,6 +99,7 @@ class TestCustomEmails(ZulipTestCase):
 
     def test_send_custom_email_headers(self) -> None:
         hamlet = self.example_user("hamlet")
+        campaign_name = "test_campaign_headers"
         markdown_template_path = (
             "zerver/tests/fixtures/email/custom_emails/email_base_headers_test.md"
         )
@@ -104,6 +108,7 @@ class TestCustomEmails(ZulipTestCase):
             dry_run=False,
             options={
                 "markdown_template_path": markdown_template_path,
+                "campaign_name": campaign_name,
             },
         )
         self.assert_length(mail.outbox, 1)
@@ -122,6 +127,7 @@ class TestCustomEmails(ZulipTestCase):
             dry_run=False,
             options={
                 "markdown_template_path": markdown_template_path,
+                "campaign_name": "test_campaign_context_1",
             },
         )
         self.assert_length(mail.outbox, 1)
@@ -145,6 +151,7 @@ class TestCustomEmails(ZulipTestCase):
             dry_run=False,
             options={
                 "markdown_template_path": markdown_template_path,
+                "campaign_name": "test_campaign_context_2",
             },
             add_context=add_context,
         )
@@ -156,6 +163,7 @@ class TestCustomEmails(ZulipTestCase):
 
     def test_send_custom_email_no_argument(self) -> None:
         hamlet = self.example_user("hamlet")
+        campaign_name = "test_campaign"
         from_name = "from_name_test"
         email_subject = "subject_test"
         markdown_template_path = (
@@ -172,6 +180,7 @@ class TestCustomEmails(ZulipTestCase):
             options={
                 "markdown_template_path": markdown_template_path,
                 "from_name": from_name,
+                "campaign_name": campaign_name,
             },
         )
 
@@ -183,6 +192,7 @@ class TestCustomEmails(ZulipTestCase):
             options={
                 "markdown_template_path": markdown_template_path,
                 "subject": email_subject,
+                "campaign_name": campaign_name,
             },
         )
 
@@ -193,6 +203,7 @@ class TestCustomEmails(ZulipTestCase):
         markdown_template_path = (
             "zerver/tests/fixtures/email/custom_emails/email_base_headers_test.md"
         )
+        campaign_name = "test_campaign"
 
         from zerver.lib.send_email import DoubledEmailArgumentError
 
@@ -204,6 +215,7 @@ class TestCustomEmails(ZulipTestCase):
             options={
                 "markdown_template_path": markdown_template_path,
                 "subject": email_subject,
+                "campaign_name": campaign_name,
             },
         )
 
@@ -215,6 +227,7 @@ class TestCustomEmails(ZulipTestCase):
             options={
                 "markdown_template_path": markdown_template_path,
                 "from_name": from_name,
+                "campaign_name": campaign_name,
             },
         )
 
@@ -224,6 +237,7 @@ class TestCustomEmails(ZulipTestCase):
         reply_to = "reply_to_test"
         from_name = "from_name_test"
         markdown_template_path = "templates/zerver/tests/markdown/test_nested_code_blocks.md"
+        campaign_name = "test_campaign"
         with patch("builtins.print") as _:
             send_custom_email(
                 UserProfile.objects.filter(id=hamlet.id),
@@ -233,6 +247,7 @@ class TestCustomEmails(ZulipTestCase):
                     "reply_to": reply_to,
                     "subject": email_subject,
                     "from_name": from_name,
+                    "campaign_name": campaign_name,
                 },
             )
             self.assert_length(mail.outbox, 0)
@@ -489,40 +504,6 @@ class TestFollowupEmails(ZulipTestCase):
         self.assertIn("you have created a new Zulip organization", message.body)
         self.assertNotIn("demo org", message.body)
 
-    def test_followup_emails_for_demo_realms(self) -> None:
-        cordelia = self.example_user("cordelia")
-        cordelia.realm.demo_organization_scheduled_deletion_date = timezone_now() + timedelta(
-            days=30
-        )
-        cordelia.realm.save()
-        with self.captureOnCommitCallbacks(execute=True) as callbacks:
-            send_account_registered_email(self.example_user("cordelia"), realm_creation=True)
-            enqueue_welcome_emails(self.example_user("cordelia"), realm_creation=True)
-
-            scheduled_emails = ScheduledEmail.objects.filter(users=cordelia).order_by(
-                "scheduled_timestamp"
-            )
-            self.assert_length(scheduled_emails, 2)
-            self.assertEqual(
-                orjson.loads(scheduled_emails[0].data)["template_prefix"],
-                "zerver/emails/onboarding_zulip_guide",
-            )
-            self.assertEqual(
-                orjson.loads(scheduled_emails[1].data)["template_prefix"],
-                "zerver/emails/onboarding_team_to_zulip",
-            )
-
-        # The insert into the deferred_email_senders queue
-        self.assert_length(callbacks, 1)
-
-        # Exiting the block does the email-sending
-        from django.core.mail import outbox
-
-        self.assert_length(outbox, 1)
-
-        message = outbox[0]
-        self.assertIn("you have created a new demo Zulip organization", message.body)
-
     def test_onboarding_zulip_guide_with_invalid_org_type(self) -> None:
         cordelia = self.example_user("cordelia")
         realm = get_realm("zulip")
@@ -669,3 +650,25 @@ class TestHtmlToMarkdown(ZulipTestCase):
         self.assertEqual(
             convert_html_to_markdown("a rose is not a ros&eacute;"), "a rose is not a rosé"
         )
+
+
+class TestUtmParamsInEmailLinks(ZulipTestCase):
+    def test_add_utm_paras_to_links(self) -> None:
+        from zerver.lib.send_email import add_utm_params_to_links
+
+        campaign_name = "test_campaign"
+
+        html = '<a href="https://zulip.com/pricing">Pricing</a>'
+        expected = '<a href="https://zulip.com/pricing?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=test_campaign">Pricing</a>'
+        self.assertEqual(add_utm_params_to_links(html, campaign_name), expected)
+
+        html_frag = '<a href="https://zulip.com/help#topic">Help</a>'
+        expected_frag = '<a href="https://zulip.com/help?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=test_campaign#topic">Help</a>'
+        self.assertEqual(add_utm_params_to_links(html_frag, campaign_name), expected_frag)
+
+        html_ext = '<a href="https://github.com/zulip/zulip">GitHub</a>'
+        self.assertEqual(add_utm_params_to_links(html_ext, campaign_name), html_ext)
+
+        html_query = '<a href="https://blog.zulip.com/?page=2">Blog</a>'
+        expected_query = '<a href="https://blog.zulip.com/?page=2&amp;utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=test_campaign">Blog</a>'
+        self.assertEqual(add_utm_params_to_links(html_query, campaign_name), expected_query)

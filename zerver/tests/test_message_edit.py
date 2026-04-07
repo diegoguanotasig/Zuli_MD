@@ -5,6 +5,7 @@ from unittest import mock
 
 import orjson
 import time_machine
+from django.test import override_settings
 from django.utils.timezone import now as timezone_now
 
 from zerver.actions.message_edit import get_mentions_for_message_updates
@@ -51,9 +52,11 @@ class EditMessageTest(ZulipTestCase):
         """
         We assume our caller just edited a message.
 
-        Next, we will make sure we properly cached the messages.  We still have
-        to do a query to hydrate recipient info, but we won't need to hit the
-        zerver_message table.
+        Next, we will make sure we can fetch the message correctly.
+        Stream message edits invalidate the cache (rather than eagerly
+        rebuilding it), so the first access triggers a lazy rebuild
+        from the database.  We verify the rebuild populates the cache
+        by checking that a second fetch needs no message-table query.
         """
 
         with queries_captured(keep_cache_warm=True) as queries:
@@ -69,9 +72,24 @@ class EditMessageTest(ZulipTestCase):
                 realm=msg.realm,
             )
 
+        # The lazy rebuild should have populated the cache, so a
+        # second fetch only needs a sender-info query, not a
+        # message-table query.
+        with queries_captured(keep_cache_warm=True) as queries:
+            messages_for_ids(
+                message_ids=[msg.id],
+                user_message_flags={msg_id: []},
+                search_fields={},
+                apply_markdown=False,
+                client_gravatar=False,
+                allow_empty_topic_name=True,
+                message_edit_history_visibility_policy=MessageEditHistoryVisibilityPolicyEnum.all.value,
+                user_profile=None,
+                realm=msg.realm,
+            )
+
         self.assert_length(queries, 1)
-        for query in queries:
-            self.assertNotIn("message", query.sql)
+        self.assertNotIn("message", queries[0].sql)
 
         self.assertEqual(
             fetch_message_dict[TOPIC_NAME],
@@ -182,24 +200,27 @@ class EditMessageTest(ZulipTestCase):
         msg_id = self.send_stream_message(
             self.example_user("hamlet"), "Denmark", topic_name="editing", content="before edit"
         )
-        result = self.client_patch(
-            f"/json/messages/{msg_id}",
-            {
-                "content": "after edit",
-            },
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.client_patch(
+                f"/json/messages/{msg_id}",
+                {
+                    "content": "after edit",
+                },
+            )
         self.assert_json_success(result)
         self.check_message(msg_id, topic_name="editing", content="after edit")
 
-        result = self.client_patch(
-            f"/json/messages/{msg_id}",
-            {
-                "topic": "edited",
-            },
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.client_patch(
+                f"/json/messages/{msg_id}",
+                {
+                    "topic": "edited",
+                },
+            )
         self.assert_json_success(result)
         self.assertEqual(Message.objects.get(id=msg_id).topic_name(), "edited")
 
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_fetch_message_from_id(self) -> None:
         hamlet = self.example_user("hamlet")
         cordelia = self.example_user("cordelia")
@@ -212,7 +233,10 @@ class EditMessageTest(ZulipTestCase):
         response_dict = self.assert_json_success(result)
         self.assertEqual(response_dict["raw_content"], "Outgoing direct message")
         self.assertEqual(response_dict["message"]["id"], msg_id)
-        self.assertEqual(response_dict["message"]["recipient_id"], cordelia.recipient_id)
+        self.assertEqual(
+            response_dict["message"]["recipient_id"],
+            self.get_dm_group_recipient(hamlet, cordelia).id,
+        )
         self.assertEqual(response_dict["message"]["flags"], ["read"])
         self.assertEqual(response_dict["message"][TOPIC_NAME], "")
 
@@ -224,7 +248,10 @@ class EditMessageTest(ZulipTestCase):
         self.assertEqual(response_dict["raw_content"], "Incoming direct message")
         self.assertEqual(response_dict["message"]["id"], msg_id)
         # Incoming DMs show the recipient_id that outgoing DMs would.
-        self.assertEqual(response_dict["message"]["recipient_id"], cordelia.recipient_id)
+        self.assertEqual(
+            response_dict["message"]["recipient_id"],
+            self.get_dm_group_recipient(hamlet, cordelia).id,
+        )
         self.assertEqual(response_dict["message"]["flags"], [])
         self.assertEqual(response_dict["message"][TOPIC_NAME], "")
 

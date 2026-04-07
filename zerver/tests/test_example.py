@@ -3,6 +3,7 @@ from unittest import mock
 
 import orjson
 import time_machine
+from django.test import override_settings
 from django.utils.timezone import now as timezone_now
 
 from zerver.actions.realm_settings import do_change_realm_permission_group_setting
@@ -69,7 +70,7 @@ class TestBasicUserStuff(ZulipTestCase):
         # functions, like do_change_user_role. Modifying Django
         # objects and then using .save() can be buggy, as doing so can
         # fail to update caches, RealmAuditLog, or related tables properly.
-        do_change_user_role(hamlet, UserProfile.ROLE_REALM_OWNER, acting_user=iago)
+        do_change_user_role(hamlet, UserProfile.ROLE_REALM_OWNER, acting_user=iago, notify=False)
         self.assertTrue(is_administrator_role(hamlet.role))
 
         # After we promote Hamlet, we also demote him.  Testing state
@@ -82,7 +83,7 @@ class TestBasicUserStuff(ZulipTestCase):
         # There are a few exceptions, where tests interact with the
         # filesystem (E.g. uploading files), which is generally
         # handled by the setUp/tearDown methods for the test class.
-        do_change_user_role(hamlet, UserProfile.ROLE_MODERATOR, acting_user=iago)
+        do_change_user_role(hamlet, UserProfile.ROLE_MODERATOR, acting_user=iago, notify=False)
         self.assertFalse(is_administrator_role(hamlet.role))
 
 
@@ -137,6 +138,7 @@ class TestFullStack(ZulipTestCase):
                 role=UserProfile.ROLE_MEMBER,
                 timezone="Etc/UTC",
                 user_id=cordelia.id,
+                is_imported_stub=False,
             ),
         )
 
@@ -349,6 +351,7 @@ class TestMessageHelpers(ZulipTestCase):
 
 
 class TestQueryCounts(ZulipTestCase):
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_capturing_queries(self) -> None:
         # It's a common pitfall in Django to accidentally perform
         # database queries in a loop, due to lazy evaluation of
@@ -360,6 +363,27 @@ class TestQueryCounts(ZulipTestCase):
         # they're necessary. You can investiate whether the changes
         # are expected/sensible by comparing print(queries) between
         # your branch and main.
+        hamlet = self.example_user("hamlet")
+        cordelia = self.example_user("cordelia")
+
+        # when direct message group doesn't exist and should be created as part of the flow
+        with self.assert_database_query_count(25):
+            self.send_personal_message(
+                from_user=hamlet,
+                to_user=cordelia,
+                content="hello there!",
+            )
+
+        # when direct message group exists
+        with self.assert_database_query_count(18):
+            self.send_personal_message(
+                from_user=hamlet,
+                to_user=cordelia,
+                content="hello there!",
+            )
+
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
+    def test_capturing_queries_using_personal_recipient(self) -> None:
         hamlet = self.example_user("hamlet")
         cordelia = self.example_user("cordelia")
 

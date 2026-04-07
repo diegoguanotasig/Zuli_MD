@@ -3,11 +3,13 @@ from unittest import mock
 
 import orjson
 from django.db import connection
+from django.test import override_settings
 from typing_extensions import override
 
 from zerver.actions.message_flags import do_update_message_flags
 from zerver.actions.streams import do_change_stream_group_based_setting, do_change_stream_permission
 from zerver.actions.user_groups import check_add_user_group
+from zerver.actions.user_settings import do_change_user_setting
 from zerver.actions.user_topics import do_set_user_topic_visibility_policy
 from zerver.lib.fix_unreads import fix, fix_unsubscribed
 from zerver.lib.message import (
@@ -28,6 +30,7 @@ from zerver.lib.test_classes import ZulipTestCase
 from zerver.lib.test_helpers import get_subscription
 from zerver.lib.user_message import DEFAULT_HISTORICAL_FLAGS, create_historical_user_messages
 from zerver.models import (
+    Device,
     Message,
     Recipient,
     Stream,
@@ -492,6 +495,55 @@ class UnreadCountTests(ZulipTestCase):
             message_ids,
         )
 
+    def test_update_flags_for_narrow_with_operator(self) -> None:
+        """Test that the with operator in a narrow is correctly handled
+        by the update_message_flags_for_narrow endpoint."""
+        user = self.example_user("hamlet")
+        self.login_user(user)
+        message_ids = [
+            self.send_stream_message(
+                self.example_user("cordelia"), "Verona", topic_name="test topic"
+            )
+            for i in range(5)
+        ]
+
+        # First mark all messages as read.
+        self.assert_json_success(
+            self.client_post(
+                "/json/messages/flags",
+                {
+                    "messages": orjson.dumps(message_ids).decode(),
+                    "op": "add",
+                    "flag": "read",
+                },
+            )
+        )
+
+        # Mark messages as unread using a narrow that includes a
+        # "with" operator, as the web app sends for topic views
+        # accessed via permalink URLs.
+        response = self.assert_json_success(
+            self.client_post(
+                "/json/messages/flags/narrow",
+                {
+                    "anchor": message_ids[0],
+                    "num_before": 0,
+                    "num_after": 999,
+                    "narrow": orjson.dumps(
+                        [
+                            {"operator": "channel", "operand": get_stream("Verona", user.realm).id},
+                            {"operator": "topic", "operand": "test topic"},
+                            {"operator": "with", "operand": str(message_ids[2])},
+                        ]
+                    ).decode(),
+                    "op": "remove",
+                    "flag": "read",
+                },
+            )
+        )
+        self.assertEqual(response["processed_count"], 5)
+        self.assertEqual(response["updated_count"], 5)
+
     def test_update_flags_for_narrow_misuse(self) -> None:
         self.login("hamlet")
 
@@ -951,6 +1003,54 @@ class PushNotificationMarkReadFlowsTest(ZulipTestCase):
         mock_push_notifications.assert_called()
         mock_send_push_notifications.assert_called()
 
+    @mock.patch("zerver.lib.push_notifications.send_push_notifications")
+    @mock.patch("zerver.lib.push_notifications.push_notifications_configured", return_value=True)
+    def test_skip_clear_notification_for_user_without_push_device(
+        self,
+        mock_push_notifications: mock.MagicMock,
+        mock_send_push_notifications: mock.MagicMock,
+    ) -> None:
+        hamlet = self.example_user("hamlet")
+        cordelia = self.example_user("cordelia")
+        self.login_user(cordelia)
+        self.register_push_device(cordelia.id)
+        do_change_user_setting(cordelia, "enable_stream_push_notifications", True, acting_user=None)
+
+        # Initially, no active push notifications.
+        self.assertEqual(self.get_mobile_push_notification_ids(cordelia), [])
+
+        verona = self.subscribe(cordelia, "Verona")
+        message_ids = [self.send_stream_message(hamlet, "Verona", str(i)) for i in range(10)]
+
+        # Verify push notifications sent to `cordelia` for `message_ids`
+        self.assertEqual(
+            self.get_mobile_push_notification_ids(cordelia),
+            message_ids,
+        )
+
+        # Device unregistered. Verify that no event to revoke notifications gets
+        # enqueued to `missedmessage_mobile_notifications` and `active_mobile_push_notification`
+        # flag is unset.
+        Device.objects.filter(push_token_id__isnull=False).delete()
+        with (
+            mock.patch(
+                "zerver.actions.message_flags.queue_event_on_commit"
+            ) as mock_queue_event_on_commit,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            result = self.client_post(
+                "/json/mark_stream_as_read",
+                {
+                    "stream_id": str(verona.id),
+                },
+            )
+        self.assert_json_success(result)
+        mock_queue_event_on_commit.assert_not_called()
+        self.assertEqual(
+            self.get_mobile_push_notification_ids(cordelia),
+            [],
+        )
+
 
 class MarkAllAsReadEndpointTest(ZulipTestCase):
     def test_mark_all_as_read_endpoint(self) -> None:
@@ -1127,6 +1227,29 @@ class GetUnreadMsgsTest(ZulipTestCase):
             dict(user_ids_string=direct_message_group_string),
         )
 
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
+    def test_raw_unread_personal_using_personal_recipients(self) -> None:
+        cordelia = self.example_user("cordelia")
+        othello = self.example_user("othello")
+        hamlet = self.example_user("hamlet")
+
+        cordelia_pm_message_ids = [self.send_personal_message(cordelia, hamlet) for i in range(3)]
+        othello_pm_message_ids = [self.send_personal_message(othello, hamlet) for i in range(3)]
+
+        raw_unread_data = get_raw_unread_data(user_profile=hamlet)
+
+        pm_dict = raw_unread_data["pm_dict"]
+
+        self.assertEqual(
+            set(pm_dict.keys()),
+            set(cordelia_pm_message_ids) | set(othello_pm_message_ids),
+        )
+
+        self.assertEqual(
+            pm_dict[cordelia_pm_message_ids[0]],
+            dict(other_user_id=cordelia.id),
+        )
+
     def test_raw_unread_personal(self) -> None:
         cordelia = self.example_user("cordelia")
         othello = self.example_user("othello")
@@ -1152,7 +1275,8 @@ class GetUnreadMsgsTest(ZulipTestCase):
             dict(other_user_id=cordelia.id),
         )
 
-    def test_raw_unread_personal_using_direct_group_message(self) -> None:
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
+    def test_raw_unread_personal_using_direct_message_group(self) -> None:
         cordelia = self.example_user("cordelia")
         othello = self.example_user("othello")
         hamlet = self.example_user("hamlet")
@@ -1183,6 +1307,7 @@ class GetUnreadMsgsTest(ZulipTestCase):
             dict(other_user_id=othello.id),
         )
 
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
     def test_raw_unread_personal_from_self(self) -> None:
         hamlet = self.example_user("hamlet")
 
@@ -1277,6 +1402,7 @@ class GetUnreadMsgsTest(ZulipTestCase):
             dict(other_user_id=hamlet.id),
         )
 
+    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_raw_unread_personal_from_self_using_direct_message_group(self) -> None:
         hamlet = self.example_user("hamlet")
 

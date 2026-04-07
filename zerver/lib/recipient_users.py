@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
@@ -39,14 +40,10 @@ def get_recipient_from_user_profiles(
     recipient_profiles_map[sender.id] = sender
     user_ids = list(recipient_profiles_map)
 
-    # Important note: We are transitioning 1:1 DMs and self DMs to use
-    # DirectMessageGroup as the Recipient type. If a
-    # DirectMessageGroup exists for the collection of user IDs, it is
-    # guaranteed to contain that entire DM conversation. If none
-    # exists, we use the legacy personal recipient (which may or may
-    # not exist). Once the migration completes, this code path should
-    # just call get_or_create_direct_message_group.
     if len(recipient_profiles_map) <= 2:
+        # Try the DirectMessageGroup for the 1-to-1 and
+        # message-to-self case.  If it exists, we will ratchet forward
+        # and use it (for both sending and receiving).
         direct_message_group = get_direct_message_group(user_ids)
         if direct_message_group:
             # Use the existing direct message group as the preferred recipient.
@@ -56,18 +53,28 @@ def get_recipient_from_user_profiles(
                 type_id=direct_message_group.id,
             )
 
-        # if no direct message group recipient exists, we need to
-        # force the direct message to be a personal internally.
-        del recipient_profiles_map[sender.id]
-        if len(recipient_profiles_map) == 1:
-            [recipient_user_profile] = recipient_profiles_map.values()
-        else:
-            recipient_user_profile = sender
-        return Recipient(
-            id=recipient_user_profile.recipient_id,
-            type=Recipient.PERSONAL,
-            type_id=recipient_user_profile.id,
+        # We don't have a DirectMessageGroup; if we have personal
+        # recipients and we're in PREFER_DIRECT_MESSAGE_GROUP=False,
+        # then we use them.
+        has_personal_recipient = all(
+            user_profile.recipient_id is not None
+            for user_profile in recipient_profiles_map.values()
         )
+        if has_personal_recipient and not settings.PREFER_DIRECT_MESSAGE_GROUP:
+            del recipient_profiles_map[sender.id]
+            if len(recipient_profiles_map) == 1:
+                [recipient_user_profile] = recipient_profiles_map.values()
+            else:
+                recipient_user_profile = sender
+            return Recipient(
+                id=recipient_user_profile.recipient_id,
+                type=Recipient.PERSONAL,
+                type_id=recipient_user_profile.id,
+            )
+
+        # We're a <= 2 person DM, didn't have a DirectMessageGroup, and
+        # PREFER_DIRECT_MESSAGE_GROUP=True; fall through to the below,
+        # where we create if asked for, or raise an error.
 
     if create:
         direct_message_group = get_or_create_direct_message_group(user_ids)
