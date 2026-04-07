@@ -15639,10 +15639,10 @@ paths:
           $ref: "#/components/responses/SuccessIgnoredParameters"
   /users/me/avatar:
     post:
-      summary: Upload an avatar
+      summary: Upload a profile picture
       description: |
-        Upload a new avatar image for the user.
-      operationId: upload_avatar
+        Upload a new [profile picture](/help/change-your-profile-picture) for the current user.
+      operationId: upload-avatar
       tags:
         - users
       requestBody:
@@ -15655,10 +15655,10 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: The avatar image file to upload.
-                  example: "image.png"
               required:
                 - file
+            x-parameter-description: |
+              The image file to upload as the profile picture.
       responses:
         "200":
           description: Success.
@@ -15670,11 +15670,18 @@ paths:
                 properties:
                   result:
                     type: string
+                    description: Always "success".
+                    enum:
+                      - success
                   msg:
                     type: string
+                    description: Always "".
                   avatar_url:
                     type: string
-                    description: The URL of the user's new avatar.
+                    description: The URL of the current user's new profile picture.
+                required:
+                  - result
+                  - msg
               examples:
                 avatar_uploaded:
                   value:
@@ -15683,10 +15690,10 @@ paths:
                     avatar_url: "https://zulip.com/avatar/12345"
 
     delete:
-      summary: Delete an avatar
+      summary: Delete a profile picture
       description: |
-        Delete the user's uploaded avatar, reverting to a default avatar.
-      operationId: delete_avatar
+        Delete the current user's uploaded profile picture, reverting to a default.
+      operationId: delete-avatar
       tags:
         - users
       responses:
@@ -15700,11 +15707,18 @@ paths:
                 properties:
                   result:
                     type: string
+                    description: Always "success".
+                    enum:
+                      - success
                   msg:
                     type: string
+                    description: Always "".
                   avatar_url:
                     type: string
-                    description: The URL of the user's default avatar.
+                    description: The URL of the current user's default profile picture.
+                required:
+                  - result
+                  - msg
               examples:
                 avatar_deleted:
                   value:
