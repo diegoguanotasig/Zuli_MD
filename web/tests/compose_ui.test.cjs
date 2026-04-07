@@ -818,7 +818,7 @@ run_test("format_text - bulleted and numbered lists", ({override_rewire}) => {
 
     init_textarea_state("<\nfirst_item\nsecond_item>");
     compose_ui.format_text($textarea, "bulleted");
-    assert.equal(get_textarea_state(), "<- \n- first_item\n- second_item>");
+    assert.equal(get_textarea_state(), "<\n- first_item\n- second_item>");
 
     // Toggling off bulleted list
     init_textarea_state("<- first_item\n- second_item>");
