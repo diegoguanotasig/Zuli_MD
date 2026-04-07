@@ -108,8 +108,7 @@ export function query_matches_string_in_order(
     query = query.toLowerCase();
     source_str = source_str.toLowerCase();
 
-    const should_remove_diacritics = /^[a-z]+$/.test(query);
-    if (should_remove_diacritics) {
+    if (remove_diacritics(query) === query) {
         source_str = remove_diacritics(source_str);
     }
 
