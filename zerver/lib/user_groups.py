@@ -896,6 +896,16 @@ def user_has_permission_for_group_setting(
     *,
     direct_member_only: bool = False,
 ) -> bool:
+    if (
+        setting_config.allow_internet_group
+        and NamedUserGroup.objects.filter(
+            id=user_group_id,
+            name=SystemGroups.EVERYONE_ON_INTERNET,
+            is_system_group=True,
+        ).exists()
+    ):
+        return True
+
     if not setting_config.allow_everyone_group and user.is_guest:
         return False
 
