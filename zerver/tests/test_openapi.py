@@ -215,8 +215,8 @@ class OpenAPIArgumentsTest(ZulipTestCase):
         ## This one isn't really representable
         # "/user_uploads/{realm_id_str}/{filename}",
         #### These realm administration settings are valuable to document:
-        # Delete a data export.
-        "/export/realm/{export_id}",
+        # Single-stream settings alternative to the bulk endpoint
+        # users/me/subscriptions/properties; probably should just be a
         # Default stream groups are an unfinished feature and therefore
         # shouldn't be added to the documentation until that's completed.
         "/default_stream_groups/create",
@@ -224,12 +224,16 @@ class OpenAPIArgumentsTest(ZulipTestCase):
         "/default_stream_groups/{group_id}/streams",
         #### These personal settings endpoints have modest value to document:
         "/users/me/avatar",
+        # Much more valuable would be an org admin bulk-upload feature.
+        "/users/me/profile_data",
         #### Should be documented as part of interactive bots documentation
         "/bot_storage",
         "/submessage",
         "/zcommand",
         #### These "organization settings" endpoint have modest value to document:
         "/realm",
+        "/realm/domains",
+        "/realm/domains/{domain}",
         "/bots",
         "/bots/{bot_id}",
         #### These "organization settings" endpoints have low value to document:
@@ -505,21 +509,19 @@ so maybe we shouldn't include it in pending_endpoints.
             openapi_parameter_names = {parameter.name for parameter in openapi_parameters}
 
             if len(accepted_arguments - openapi_parameter_names) > 0:  # nocoverage
-                if url_pattern not in self.buggy_documentation_endpoints:
-                    print("Undocumented parameters for", url_pattern, method, function_name)
-                    print(" +", openapi_parameter_names)
-                    print(" -", accepted_arguments)
+                print("Undocumented parameters for", url_pattern, method, function_name)
+                print(" +", openapi_parameter_names)
+                print(" -", accepted_arguments)
                 assert url_pattern in self.buggy_documentation_endpoints
             elif len(openapi_parameter_names - accepted_arguments) > 0:  # nocoverage
-                if url_pattern not in self.buggy_documentation_endpoints:
-                    print(
-                        "Documented invalid parameters for",
-                        url_pattern,
-                        method,
-                        function_name,
-                    )
-                    print(" -", openapi_parameter_names)
-                    print(" +", accepted_arguments)
+                print(
+                    "Documented invalid parameters for",
+                    url_pattern,
+                    method,
+                    function_name,
+                )
+                print(" -", openapi_parameter_names)
+                print(" +", accepted_arguments)
                 assert url_pattern in self.buggy_documentation_endpoints
             else:
                 self.assertEqual(openapi_parameter_names, accepted_arguments)
