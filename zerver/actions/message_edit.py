@@ -100,6 +100,7 @@ from zerver.models import (
     UserTopic,
 )
 from zerver.models.groups import get_realm_system_groups_name_dict
+from zerver.models.realms import TopicResolutionMessageRequirementEnum
 from zerver.models.streams import StreamTopicsPolicyEnum, get_stream_by_id_in_realm
 from zerver.models.users import ResolvedTopicNoticeAutoReadPolicyEnum, get_system_bot
 from zerver.tornado.django_api import send_event_on_commit
@@ -109,12 +110,6 @@ from zerver.tornado.django_api import send_event_on_commit
 class UpdateMessageResult:
     changed_message_count: int
     detached_uploads: list[dict[str, Any]]
-
-
-# Allow a small server-side buffer for borderline edits, since the web app
-# already lets users keep editing near the deadline via
-# `min_seconds_to_edit + seconds_left_buffer` in `message_edit.ts`.
-MESSAGE_EDIT_TIME_LIMIT_BUFFER_SECONDS = 20
 
 
 def subscriber_info(user_id: int) -> dict[str, Any]:
@@ -1378,13 +1373,14 @@ def check_time_limit_for_change_all_propagate_mode(
     stream_id: int | None = None,
 ) -> None:
     realm = user_profile.realm
+    message_move_limit_buffer = 20
 
     topic_edit_deadline_seconds = None
     if topic_name is not None and realm.move_messages_within_stream_limit_seconds is not None:
         # We set topic_edit_deadline_seconds only if topic is actually
         # changed and there is some time limit to edit topic.
         topic_edit_deadline_seconds = (
-            realm.move_messages_within_stream_limit_seconds + MESSAGE_EDIT_TIME_LIMIT_BUFFER_SECONDS
+            realm.move_messages_within_stream_limit_seconds + message_move_limit_buffer
         )
 
     stream_edit_deadline_seconds = None
@@ -1393,8 +1389,7 @@ def check_time_limit_for_change_all_propagate_mode(
         # actually changed and there is some time limit to edit
         # stream.
         stream_edit_deadline_seconds = (
-            realm.move_messages_between_streams_limit_seconds
-            + MESSAGE_EDIT_TIME_LIMIT_BUFFER_SECONDS
+            realm.move_messages_between_streams_limit_seconds + message_move_limit_buffer
         )
 
     # Calculate whichever of the applicable topic and stream moving
@@ -1564,13 +1559,26 @@ def check_stream_topic_edit_permissions(
     user_profile: UserProfile,
     message: Message,
     message_edit_request: StreamMessageEditRequest,
-    edit_limit_buffer: int,
+    edit_limit_buffer: int | None = None,
+    resolution_message_already_sent: bool = False,
 ) -> None:
     if message_edit_request.topic_resolved or message_edit_request.topic_unresolved:
         if not can_resolve_topics(
             user_profile, message_edit_request.orig_stream, message_edit_request.target_stream
         ):
             raise JsonableError(_("You don't have permission to resolve topics in this channel."))
+        if (
+            message_edit_request.topic_resolved
+            and not resolution_message_already_sent
+            and user_profile.realm.topic_resolution_message_requirement
+            == TopicResolutionMessageRequirementEnum.required.value
+        ):
+            raise JsonableError(
+                _(
+                    "Your organization requires a message when resolving topics. "
+                    "Please use the compose box to resolve this topic."
+                )
+            )
         return
 
     if not can_edit_topic(
@@ -1585,6 +1593,7 @@ def check_stream_topic_edit_permissions(
         user_profile.realm.move_messages_within_stream_limit_seconds is not None
         and not user_profile.is_moderator
     ):
+        assert edit_limit_buffer is not None
         deadline_seconds = (
             user_profile.realm.move_messages_within_stream_limit_seconds + edit_limit_buffer
         )
@@ -1612,8 +1621,11 @@ def check_update_message(
     message = access_message(user_profile, message_id, lock_message=True, is_modifying_message=True)
 
     # If there is a change to the content, check that it hasn't been too long
-    # This buffer stays in sync with the client-side editing grace period.
-    edit_limit_buffer = MESSAGE_EDIT_TIME_LIMIT_BUFFER_SECONDS
+    # Allow an extra 20 seconds since we potentially allow editing 15 seconds
+    # past the limit, and in case there are network issues, etc. The 15 comes
+    # from (min_seconds_to_edit + seconds_left_buffer) in message_edit.ts; if
+    # you change this value also change those two parameters in message_edit.ts.
+    edit_limit_buffer = 20
     if content is not None:
         validate_user_can_edit_message(user_profile, message, edit_limit_buffer)
 
