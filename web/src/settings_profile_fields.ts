@@ -898,9 +898,6 @@ export function do_populate_profile_fields(profile_fields_data: CustomProfileFie
                     hint: profile_field.hint,
                     type: field_type_id_to_string(profile_field.type),
                     choices,
-                    is_select_field: profile_field.type === field_types.SELECT.id,
-                    is_external_account_field:
-                        profile_field.type === field_types.EXTERNAL_ACCOUNT.id,
                     display_in_profile_summary,
                     valid_to_display_in_summary: is_valid_to_display_in_summary(profile_field.type),
                     required,
