@@ -1482,6 +1482,7 @@ class RealmExport(models.Model):
 
     acting_user = models.ForeignKey("UserProfile", null=True, on_delete=models.SET_NULL)
     export_path = models.TextField(default=None, null=True)
+    export_path_purged = models.BooleanField(default=False)
     sha256sum_hex = models.CharField(default=None, null=True, max_length=64)
     tarball_size_bytes = models.PositiveBigIntegerField(default=None, null=True)
     stats = models.JSONField(default=None, null=True)

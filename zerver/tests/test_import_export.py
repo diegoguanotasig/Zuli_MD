@@ -1953,12 +1953,15 @@ class RealmImportExportTest(ExportFile):
         imported_prospero_user = get_user_by_delivery_email(prospero_email, imported_realm)
         self.assertIsNotNone(imported_prospero_user.recipient)
 
-        # Ensure RealmExport.export_path is excluded from the export and thus None after importing.
+        # Ensure RealmExport.export_path is excluded from the export and thus None after
+        # importing, with export_path_purged set to True to record that it was stripped.
         exported_realm_exports = read_json("realm.json")["zerver_realmexport"]
         self.assert_length(exported_realm_exports, 1)
         self.assertNotIn("export_path", exported_realm_exports[0])
+        self.assertTrue(exported_realm_exports[0]["export_path_purged"])
         imported_realm_export = RealmExport.objects.get(realm=imported_realm)
         self.assertIsNone(imported_realm_export.export_path)
+        self.assertTrue(imported_realm_export.export_path_purged)
 
     def test_import_message_edit_history(self) -> None:
         realm = get_realm("zulip")
