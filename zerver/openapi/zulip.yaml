@@ -22246,6 +22246,10 @@ paths:
                             description: |
                               Whether the user can authenticate using OpenID Connect.
                             type: boolean
+                          discord:
+                            description: |
+                              Whether the user can authenticate using their Discord account.
+                            type: boolean
                       external_authentication_methods:
                         type: array
                         description: |
