@@ -244,6 +244,50 @@ export function initialize(): void {
         $("#main_div").on("click", ".messagebox", select_message_function);
     }
 
+    // Elements where the browser's native context menu is more useful
+    // than our message actions popover (e.g., "Open link in new tab",
+    // "Save image as").
+    function is_browser_context_menu_element($target: JQuery<Element>): boolean {
+        return $target.closest("a, img, video, audio").length > 0;
+    }
+
+    // Right-clicking on a message body opens the message actions popover,
+    // unless text is selected (to allow browser copy/translate menu) or
+    // the target is an element like a link or image where the browser's
+    // context menu is more useful.
+    if (!util.is_mobile()) {
+        $("#main_div").on("contextmenu", ".messagebox", function (e) {
+            assert(e.target instanceof Element);
+
+            // If text is selected, the browser's context menu is more
+            // useful (e.g., copy, translate, search).
+            if (document.getSelection()?.type === "Range") {
+                return;
+            }
+
+            if (is_browser_context_menu_element($(e.target))) {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $row = $(this).closest(".message_row");
+            const id = rows.id($row);
+
+            assert(message_lists.current !== undefined);
+            message_lists.current.select_id(id);
+
+            // Don't open the popover for messages being edited.
+            if (message_edit.currently_editing_messages.has(id)) {
+                return;
+            }
+
+            const $menu_button = $row.find(".message-actions-menu-button");
+            $menu_button.trigger("click");
+        });
+    }
+
     $("#main_div").on("click", ".star_container", function (e) {
         e.stopPropagation();
 
