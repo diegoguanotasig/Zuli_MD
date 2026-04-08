@@ -15637,7 +15637,94 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/SuccessIgnoredParameters"
+  /users/me/avatar:
+    post:
+      summary: Upload a profile picture
+      description: |
+        Upload a new [profile picture](/help/change-your-profile-picture) for the current user.
+      operationId: upload-avatar
+      tags:
+        - users
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+            x-parameter-description: |
+              The image file to upload as the profile picture.
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  result:
+                    type: string
+                    description: Always "success".
+                    enum:
+                      - success
+                  msg:
+                    type: string
+                    description: Always "".
+                  avatar_url:
+                    type: string
+                    description: The URL of the current user's new profile picture.
+                required:
+                  - result
+                  - msg
+              examples:
+                avatar_uploaded:
+                  value:
+                    result: success
+                    msg: ""
+                    avatar_url: "https://zulip.com/avatar/12345"
 
+    delete:
+      summary: Delete a profile picture
+      description: |
+        Delete the current user's uploaded profile picture, reverting to a default.
+      operationId: delete-avatar
+      tags:
+        - users
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  result:
+                    type: string
+                    description: Always "success".
+                    enum:
+                      - success
+                  msg:
+                    type: string
+                    description: Always "".
+                  avatar_url:
+                    type: string
+                    description: The URL of the current user's default profile picture.
+                required:
+                  - result
+                  - msg
+              examples:
+                avatar_deleted:
+                  value:
+                    result: success
+                    msg: ""
+                    avatar_url: "https://secure.gravatar.com/avatar/af4f06322c177"
   /users/me/subscriptions/properties:
     post:
       operationId: update-subscription-settings

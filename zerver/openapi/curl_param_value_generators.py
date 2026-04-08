@@ -334,6 +334,12 @@ def upload_custom_emoji() -> dict[str, object]:
         "filename": "zerver/tests/images/animated_img.gif",
     }
 
+@openapi_param_value_generator(["/users/me/avatar:post"])
+def upload_avatar() -> dict[str, object]:
+    return {
+        # We can safely use an existing test image already in the Zulip repository
+        "filename": "zerver/tests/images/animated_img.gif", 
+    }
 
 @openapi_param_value_generator(["/realm/playgrounds:post"])
 def add_realm_playground() -> dict[str, object]:
