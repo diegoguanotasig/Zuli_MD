@@ -80,6 +80,7 @@ export const show_user_group_settings_pane = {
         $("#groups_overlay .user-group-settings-header-actions").hide();
         resize.resize_settings_overlay($("#groups_overlay_container"));
         resize.resize_settings_creation_overlay($("#groups_overlay_container"));
+        resize.resize_group_creation_members_list();
     },
 };
 
