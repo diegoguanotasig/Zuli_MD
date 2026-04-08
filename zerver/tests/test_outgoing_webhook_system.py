@@ -21,6 +21,7 @@ from zerver.lib.topic import TOPIC_NAME
 from zerver.lib.url_encoding import message_link_url
 from zerver.lib.users import add_service
 from zerver.models import Recipient, Service, UserProfile
+from zerver.models.bots import get_default_service_bot_triggers
 from zerver.models.realms import get_realm
 from zerver.models.recipients import get_or_create_direct_message_group
 from zerver.models.streams import get_stream
@@ -449,6 +450,7 @@ class TestOutgoingWebhookMessaging(ZulipTestCase):
             interface=Service.GENERIC,
             base_url="https://weather.example.com/",
             token="weather_token",
+            triggers=get_default_service_bot_triggers(),
         )
 
         add_service(
@@ -457,6 +459,7 @@ class TestOutgoingWebhookMessaging(ZulipTestCase):
             interface=Service.GENERIC,
             base_url="https://qotd.example.com/",
             token="qotd_token",
+            triggers=get_default_service_bot_triggers(),
         )
 
         sender = self.example_user("hamlet")
