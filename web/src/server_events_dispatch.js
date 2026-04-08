@@ -286,6 +286,7 @@ export function dispatch_normal_event(event) {
                 can_access_all_users_group: noop,
                 can_add_custom_emoji_group: settings_emoji.update_custom_emoji_ui,
                 can_add_subscribers_group: noop,
+                can_change_own_name_group: settings_account.update_name_change_display,
                 can_create_bots_group: settings_bots.update_bot_permissions_ui,
                 can_create_groups: user_group_edit.update_group_creation_ui,
                 can_create_private_channel_group: noop,
@@ -327,7 +328,6 @@ export function dispatch_normal_event(event) {
                 move_messages_within_stream_limit_seconds: message_edit.update_inline_topic_edit_ui,
                 message_retention_days: noop,
                 name: narrow_title.redraw_title,
-                name_changes_disabled: settings_account.update_name_change_display,
                 new_stream_announcements_stream_id: stream_ui_updates.update_announce_stream_option,
                 org_type: noop,
                 push_notifications_enabled: noop,
@@ -1153,7 +1153,7 @@ export function dispatch_normal_event(event) {
             break;
         }
 
-        case "user_group":
+        case "user_group": {
             switch (event.op) {
                 case "add": {
                     const user_group = user_groups.add(event.group);
@@ -1196,6 +1196,7 @@ export function dispatch_normal_event(event) {
                     break;
             }
             break;
+        }
 
         case "user_status":
             if (event.status_text !== undefined) {
