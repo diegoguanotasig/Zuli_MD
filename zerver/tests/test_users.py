@@ -1131,6 +1131,7 @@ class PermissionTest(ZulipTestCase):
 class QueryCountTest(ZulipTestCase):
     @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_create_user_with_multiple_streams_with_direct_message_group(self) -> None:
+        self.disable_channel_events_notifications()
         # add_new_user_history needs messages to be current
         Message.objects.all().update(date_sent=timezone_now())
 

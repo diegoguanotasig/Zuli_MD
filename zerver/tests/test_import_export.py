@@ -893,6 +893,7 @@ class RealmImportExportTest(ExportFile):
 
     @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_export_realm_with_member_consent(self) -> None:
+        self.disable_channel_events_notifications()
         realm = Realm.objects.get(string_id="zulip")
 
         # Create private streams and subscribe users for testing export
