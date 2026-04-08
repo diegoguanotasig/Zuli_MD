@@ -18563,6 +18563,12 @@ paths:
                                   nullable: true
                                 history_public_to_subscribers: {}
                                 topics_policy: {}
+                                wildcard_mention_policy:
+                                  type: integer
+                                  nullable: true
+                                  description: |
+                                    The per-channel wildcard mention policy for the channel.
+                                    A null value means the channel inherits the organization-level setting.
                                 first_message_id:
                                   nullable: true
                                 folder_id:
@@ -23591,6 +23597,12 @@ paths:
                                   nullable: true
                                 history_public_to_subscribers: {}
                                 topics_policy: {}
+                                wildcard_mention_policy:
+                                  type: integer
+                                  nullable: true
+                                  description: |
+                                    The per-channel wildcard mention policy for the channel.
+                                    A null value means the channel inherits the organization-level setting.
                                 first_message_id:
                                   nullable: true
                                 folder_id:
@@ -26720,6 +26732,12 @@ components:
               nullable: true
             history_public_to_subscribers: {}
             topics_policy: {}
+            wildcard_mention_policy:
+              type: integer
+              nullable: true
+              description: |
+                The per-channel wildcard mention policy for the channel.
+                A null value means the channel inherits the organization-level setting.
             first_message_id:
               nullable: true
             folder_id:
@@ -28039,12 +28057,16 @@ components:
             Intended to help clients determine whether they need to display
             UI like the "show all topics" widget that would suggest the channel
             has older history that can be accessed.
-
-            Is `null` for channels with no message history.
         folder_id:
           $ref: "#/components/schemas/FolderId"
         topics_policy:
           $ref: "#/components/schemas/TopicsPolicy"
+        wildcard_mention_policy:
+          type: integer
+          nullable: true
+          description: |
+            The per-channel wildcard mention policy for the channel.
+            A null value means the channel inherits the organization-level setting.
         is_recently_active:
           type: boolean
           description: |
