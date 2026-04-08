@@ -1851,7 +1851,8 @@ def apply_event(
         else:
             raise AssertionError("Unexpected event type {type}/{op}".format(**event))
     elif event["type"] == "realm_emoji":
-        state["realm_emoji"] = event["realm_emoji"]
+        if "realm_emoji" in state:
+            state["realm_emoji"][event["emoji"]["id"]] = event["emoji"]
     elif event["type"] == "realm_export":
         # These realm export events are only available to
         # administrators, and aren't included in page_params.
