@@ -24690,7 +24690,7 @@ paths:
             The target message's ID.
           schema:
             type: integer
-          example: 47
+          example: 48
           required: true
       requestBody:
         required: true
