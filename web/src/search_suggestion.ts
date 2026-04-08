@@ -3,6 +3,7 @@ import assert from "minimalistic-assert";
 
 import {MAX_ITEMS} from "./bootstrap_typeahead.ts";
 import * as common from "./common.ts";
+import * as date_util from "./date_util.ts";
 import * as direct_message_group_data from "./direct_message_group_data.ts";
 import {Filter} from "./filter.ts";
 import * as filter_util from "./filter_util.ts";
@@ -138,6 +139,7 @@ const incompatible_patterns: Record<SearchFilter, TermPattern[]> = {
     "has:image": [{operator: "has", operand: "image"}],
     "has:attachment": [{operator: "has", operand: "attachment"}],
     "has:reaction": [{operator: "has", operand: "reaction"}],
+    date: [{operator: "date"}],
     near: [],
     // These below are not currently looked up.
     has: [],
@@ -504,6 +506,21 @@ function ignore_resolved_topic_prefix(entry: ChannelTopicEntry, case_insensitive
     return topic_name;
 }
 
+function get_date_suggestions(
+    last: NarrowCanonicalTermSuggestion,
+    terms: NarrowCanonicalTerm[],
+): Suggestion[] {
+    if (!check_validity(last.operator, terms, ["date"], incompatible_patterns.date)) {
+        return [];
+    }
+
+    const negated = last.negated === true;
+    if (negated) {
+        return [];
+    }
+    return date_util.get_suggestions_via_smart_parsing(last.operand);
+}
+
 function get_topic_suggestions(
     last: NarrowCanonicalTermSuggestion,
     terms: NarrowCanonicalTerm[],
@@ -863,6 +880,11 @@ function get_operator_suggestions(
         legacy_operator_choices = ["from", "pm-with", "streams", "stream"];
     }
 
+    if (!negated) {
+        // We don't support excluding a date.
+        canonicalized_operator_choices.push("date");
+    }
+
     // We remove suggestion choice if its incompatible_pattern matches
     // that of current search terms.
     canonicalized_operator_choices = canonicalized_operator_choices.filter((choice) => {
@@ -1175,6 +1197,7 @@ export let get_suggestions = function (
         get_people("dm-including"),
         get_topic_suggestions,
         get_has_filter_suggestions,
+        get_date_suggestions,
     ];
 
     if (page_params.is_spectator) {
@@ -1186,6 +1209,7 @@ export let get_suggestions = function (
             get_people("sender"),
             get_topic_suggestions,
             get_has_filter_suggestions,
+            get_date_suggestions,
         ];
     }
 
