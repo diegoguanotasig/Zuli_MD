@@ -22,7 +22,7 @@ import * as util from "./util.ts";
 type UrlOption = {
     key: string;
     label: string;
-    validator: string;
+    input_type: string;
 };
 
 type TopicUIParams = {
@@ -35,7 +35,7 @@ type TopicUIParams = {
 const url_option_schema = z.object({
     key: z.string(),
     label: z.string(),
-    validator: z.string(),
+    input_type: z.string(),
 });
 
 const url_options_schema = z.array(url_option_schema);
@@ -170,41 +170,43 @@ export function show_generate_integration_url_modal(api_key: string): void {
             $config_container.empty();
 
             for (const option of validated_config) {
+                if (option.key === PresetUrlOption.CHANNEL_MAPPING) {
+                    continue;
+                }
+
+                const {key, label, input_type} = option;
                 let $config_element: JQuery;
 
-                if (option.key === PresetUrlOption.BRANCHES) {
+                if (key === PresetUrlOption.BRANCHES) {
                     const filter_branches_html =
                         render_generate_integration_url_filter_branches_modal();
                     $config_element = $(filter_branches_html);
                     $config_element.find("#integration-url-all-branches").on("change", () => {
                         show_branch_filtering_ui();
                     });
-                } else if (option.key === PresetUrlOption.CHANNEL_MAPPING) {
-                    continue;
-                } else if (option.validator === "check_bool") {
-                    const config_html = render_generate_integration_url_config_checkbox_modal({
-                        key: option.key,
-                        label: option.label,
+                } else if (input_type === "checkbox" || input_type === "checkbox_enabled") {
+                    $config_element = $(
+                        render_generate_integration_url_config_checkbox_modal({key, label}),
+                    );
+                    const $input = $config_element.find(`#integration-url-${key}-checkbox`);
+                    $input.on("change", () => {
+                        update_url();
                     });
-                    $config_element = $(config_html);
-                    $config_element
-                        .find(`#integration-url-${option.key}-checkbox`)
-                        .on("change", () => {
-                            update_url();
-                        });
-                } else if (option.validator === "check_string") {
-                    const config_html = render_generate_integration_url_config_text_modal({
-                        key: option.key,
-                        label: option.label,
-                    });
-                    $config_element = $(config_html);
-                    $config_element.find(`#integration-url-${option.key}-text`).on("input", () => {
+                    if (input_type === "checkbox_enabled") {
+                        $input.prop("checked", true);
+                    }
+                } else if (input_type === "text") {
+                    $config_element = $(
+                        render_generate_integration_url_config_text_modal({key, label}),
+                    );
+                    $config_element.find(`#integration-url-${key}-text`).on("input", () => {
                         update_url();
                     });
                 } else {
                     continue;
                 }
                 $config_container.append($config_element);
+                update_url();
             }
         }
 
@@ -317,40 +319,47 @@ export function show_generate_integration_url_modal(api_key: string): void {
 
             if (url_options) {
                 for (const option of url_options) {
-                    let $input_element;
-                    if (option.key === PresetUrlOption.CHANNEL_MAPPING) {
+                    const {key, input_type} = option;
+
+                    if (key === PresetUrlOption.CHANNEL_MAPPING) {
                         const stream_input = stream_input_dropdown_widget.value();
                         if (stream_input === map_channels_option?.unique_id) {
                             params.delete("stream");
                             params.set(PresetUrlOption.CHANNEL_MAPPING, "channels");
                             params.set("topic", topic_name);
                         }
-                    } else if (option.key === PresetUrlOption.BRANCHES) {
-                        if ($("#integration-url-all-branches").prop("checked")) {
-                            continue;
-                        }
+                    } else if (key === PresetUrlOption.BRANCHES) {
+                        const is_all_branches = $("#integration-url-all-branches").is(":checked");
                         const $pill_container = $(
                             "#integration-url-filter-branches .pill-container",
                         );
-                        if ($pill_container.length > 0 && branch_pill_widget !== undefined) {
-                            const branch_names = branch_pill_widget
-                                .items()
-                                .map((item) => item.branch)
-                                .join(",");
-                            if (branch_names !== "") {
-                                params.set(option.key, branch_names);
-                            }
+
+                        if (
+                            is_all_branches ||
+                            $pill_container.length === 0 ||
+                            !branch_pill_widget
+                        ) {
+                            continue;
                         }
-                    } else if (option.validator === "check_bool") {
-                        $input_element = $(`#integration-url-${option.key}-checkbox`);
-                        if ($input_element.prop("checked")) {
+
+                        const branch_names = branch_pill_widget
+                            .items()
+                            .map((item) => item.branch)
+                            .join(",");
+                        if (branch_names) {
+                            params.set(key, branch_names);
+                        }
+                    } else if (input_type === "checkbox" || input_type === "checkbox_enabled") {
+                        const is_checked = $(`#integration-url-${key}-checkbox`).is(":checked");
+                        if (is_checked) {
                             params.set(option.key, "true");
+                        } else if (input_type === "checkbox_enabled") {
+                            params.set(option.key, "false");
                         }
-                    } else if (option.validator === "check_string") {
-                        $input_element = $(`#integration-url-${option.key}-text`);
-                        const value = $input_element.val();
+                    } else if (input_type === "text") {
+                        const value = $(`#integration-url-${key}-text`).val()?.toString();
                         if (value) {
-                            params.set(option.key, value.toString());
+                            params.set(key, value);
                         }
                     }
                 }
