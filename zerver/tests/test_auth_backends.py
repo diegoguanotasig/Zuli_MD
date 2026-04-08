@@ -126,6 +126,7 @@ from zproject.backends import (
     AuthFuncT,
     AzureADAuthBackend,
     DevAuthBackend,
+    DiscordAuthBackend,
     EmailAuthBackend,
     ExternalAuthDataDict,
     ExternalAuthMethod,
@@ -153,6 +154,7 @@ from zproject.backends import (
     auth_enabled_helper,
     check_password_strength,
     dev_auth_enabled,
+    discord_auth_enabled,
     email_belongs_to_ldap,
     get_external_method_dicts,
     github_auth_enabled,
@@ -5909,6 +5911,98 @@ class GoogleAuthBackendTest(SocialAuthBase):
         }
         result = self.get_log_into_subdomain(data)
         self.assert_json_error(result, "Invalid subdomain")
+
+
+class DiscordAuthBackendTest(SocialAuthBase):
+    BACKEND_CLASS = DiscordAuthBackend
+    CLIENT_KEY_SETTING = "SOCIAL_AUTH_DISCORD_KEY"
+    CLIENT_SECRET_SETTING = "SOCIAL_AUTH_DISCORD_SECRET"
+    LOGIN_URL = "/accounts/login/social/discord"
+    SIGNUP_URL = "/accounts/register/social/discord"
+    AUTHORIZATION_URL = "https://discord.com/api/oauth2/authorize"
+    ACCESS_TOKEN_URL = "https://discord.com/api/oauth2/token"
+    USER_INFO_URL = "https://discord.com/api/users/@me"
+    AUTH_FINISH_URL = "/complete/discord/"
+
+    def test_discord_auth_enabled(self) -> None:
+        with self.settings(AUTHENTICATION_BACKENDS=("zproject.backends.DiscordAuthBackend",)):
+            self.assertTrue(discord_auth_enabled())
+
+    @override
+    def get_account_data_dict(
+        self, email: str, name: str, id: str = "123", verified: bool = True
+    ) -> dict[str, Any]:
+        return dict(
+            id=id,
+            email=email,
+            global_name=name,
+            username=name.lower(),
+            verified=verified,
+            email_verified=True,
+        )
+
+    def test_social_auth_email_not_verified(self) -> None:
+        account_data_dict = self.get_account_data_dict(
+            email=self.email, name=self.name, verified=False
+        )
+        subdomain = "zulip"
+        realm = get_realm(subdomain)
+        with self.assertLogs(self.logger_string, level="WARNING") as m:
+            result = self.social_auth_test(account_data_dict, subdomain=subdomain)
+            self.assertEqual(result.status_code, 302)
+            self.assertEqual(result["Location"], realm.url + "/login/")
+        self.assertEqual(
+            m.output,
+            [
+                self.logger_output(
+                    "Social auth ({}) failed because user has no verified emails".format("Discord"),
+                    "warning",
+                )
+            ],
+        )
+
+    def test_sync_user_email(self) -> None:
+        subdomain = "zulip"
+        discord_user_id = "123456"
+        hamlet = self.example_user("hamlet")
+
+        # Initial login creates an ExternalAuthID and links it to hamlet.
+        self.assertEqual(ExternalAuthID.objects.filter(user=hamlet).count(), 0)
+        account_data_dict = self.get_account_data_dict(
+            email=hamlet.delivery_email, name=hamlet.full_name, id=discord_user_id
+        )
+        result = self.social_auth_test(
+            account_data_dict,
+            expect_choose_email_screen=False,
+            subdomain=subdomain,
+            next="/user_uploads/image",
+        )
+        data = load_subdomain_token(result)
+        self.assertEqual(data["email"], account_data_dict["email"])
+        self.assertEqual(data["full_name"], account_data_dict["global_name"])
+        self.assertEqual(data["subdomain"], subdomain)
+        self.assertEqual(result.status_code, 302)
+        parsed_url = urlsplit(result["Location"])
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+
+        hamlet_external_auth = ExternalAuthID.objects.get(user=hamlet)
+        self.assertEqual(hamlet_external_auth.user.delivery_email, account_data_dict["email"])
+
+        # Login again with a new Discord email, Hamlet's Zulip account email should be
+        # updated.
+        hamlet_new_email = "newhamletemail@zulip.com"
+        account_data_dict = self.get_account_data_dict(
+            email=hamlet_new_email, name=hamlet.full_name, id=discord_user_id
+        )
+        result = self.social_auth_test(
+            account_data_dict,
+            expect_choose_email_screen=False,
+            subdomain=subdomain,
+            next="/user_uploads/image",
+        )
+        hamlet_external_auth = ExternalAuthID.objects.get(user=hamlet)
+        self.assertEqual(hamlet_external_auth.user.delivery_email, hamlet_new_email)
 
 
 class JSONFetchAPIKeyTest(ZulipTestCase):
