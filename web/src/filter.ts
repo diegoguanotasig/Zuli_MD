@@ -426,7 +426,24 @@ export class Filter {
         for (const token of matches) {
             let operator;
             const parts = token.split(":");
-            if (token.startsWith('"') || parts.length === 1) {
+            if (parts.length === 1 && terms.at(-1)?.operator === "date") {
+                const date_term = terms.at(-1);
+                assert(date_term !== undefined);
+                const current_date_operand = date_term.operand;
+                if (date_util.maybe_get_parsed_iso_8601_date(current_date_operand) === undefined) {
+                    // If the current date operand cannot be parsed to the expected format,
+                    // trying appending the current token to the operand, to potentially continue
+                    // matching with the pill value, which is a pleasant experience while
+                    // typing out a pill label from the search suggestions.
+                    // See date_util.get_default_search_suggestions, which uses the operand to match with
+                    // the search pill value while filtering through default suggestions.
+                    // So something like `date:a week`, would result in [{operator:"date", operand:"a week"}]
+                    // instead of [{operator:"date", operand:"a"}, {operator:"search", operand:"week"}];
+                    date_term.operand += " " + token;
+                } else {
+                    search_term.push(token);
+                }
+            } else if (token.startsWith('"') || parts.length === 1) {
                 // Looks like a normal search term.
                 search_term.push(token);
             } else {

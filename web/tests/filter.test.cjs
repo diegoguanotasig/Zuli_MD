@@ -1694,6 +1694,17 @@ test("parse", () => {
     string = "https://www.google.com";
     terms = [{operator: "search", operand: "https://www.google.com"}];
     _test();
+
+    string = "date:a week ago";
+    terms = [{operator: "date", operand: "a week ago"}];
+    _test();
+
+    string = "date:2025-03-12 hello";
+    terms = [
+        {operator: "date", operand: "2025-03-12"},
+        {operator: "search", operand: "hello"},
+    ];
+    _test();
 });
 
 test("unparse", () => {
