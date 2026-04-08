@@ -15,7 +15,6 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import CommandError
 from django.db.models import Q, QuerySet
 from django.forms.models import model_to_dict
-from django.test import override_settings
 from django.utils.timezone import now as timezone_now
 from typing_extensions import override
 
@@ -71,7 +70,7 @@ from zerver.lib.test_helpers import (
 from zerver.lib.thumbnail import BadImageError
 from zerver.lib.topic import DB_TOPIC_NAME
 from zerver.lib.upload import claim_attachment, upload_avatar_image, upload_message_attachment
-from zerver.lib.utils import assert_is_not_none, get_fk_field_name
+from zerver.lib.utils import get_fk_field_name
 from zerver.models import (
     AlertWord,
     Attachment,
@@ -654,12 +653,6 @@ class RealmImportExportTest(ExportFile):
         self.assertIn(pm_c_msg_id, exported_message_ids)
         self.assertIn(pm_d_msg_id, exported_message_ids)
 
-        personal_recipient_type_ids = (
-            r["type_id"] for r in realm_data["zerver_recipient"] if r["type"] == Recipient.PERSONAL
-        )
-        for user_profile_id in [cordelia.id, hamlet.id, iago.id, othello.id, polonius.id]:
-            self.assertIn(user_profile_id, personal_recipient_type_ids)
-
     def test_get_consented_user_ids(self) -> None:
         realm = get_realm("zulip")
         consented_user = self.example_user("iago")
@@ -891,7 +884,6 @@ class RealmImportExportTest(ExportFile):
         exported_huddle_ids = self.get_set(realm_data["zerver_huddle"], "id")
         self.assertEqual(exported_huddle_ids, set())
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_export_realm_with_member_consent(self) -> None:
         realm = Realm.objects.get(string_id="zulip")
 
@@ -1022,12 +1014,6 @@ class RealmImportExportTest(ExportFile):
         do_deactivate_user(deactivated_non_consented_user, acting_user=None)
 
         self.assertEqual(get_consented_user_ids(realm), consented_user_ids)
-
-        # Remove the recipient of the welcome bot to test exporting bots without personal recipients.
-        internal_realm = get_realm(settings.SYSTEM_BOT_REALM)
-        welcome_bot = get_system_bot(settings.WELCOME_BOT, internal_realm.id)
-        welcome_bot.recipient = None
-        welcome_bot.save(update_fields=["recipient"])
 
         self.export_realm_and_create_auditlog(
             realm,
@@ -1801,12 +1787,7 @@ class RealmImportExportTest(ExportFile):
         imported_denmark_stream = Stream.objects.get(name="Denmark", realm=imported_realm)
         self.assertEqual(imported_denmark_stream.creator, imported_hamlet_user)
 
-        # Check recipient_id was generated correctly for the imported users and streams.
-        for user_profile in UserProfile.objects.filter(realm=imported_realm):
-            self.assertEqual(
-                user_profile.recipient_id,
-                Recipient.objects.get(type=Recipient.PERSONAL, type_id=user_profile.id).id,
-            )
+        # Check recipient_id was generated correctly for the imported streams.
         for stream in Stream.objects.filter(realm=imported_realm):
             self.assertEqual(
                 stream.recipient_id,
@@ -1950,8 +1931,7 @@ class RealmImportExportTest(ExportFile):
             imported_message_with_thumbnail.rendered_content, expected_rendered_preview
         )
 
-        imported_prospero_user = get_user_by_delivery_email(prospero_email, imported_realm)
-        self.assertIsNotNone(imported_prospero_user.recipient)
+        get_user_by_delivery_email(prospero_email, imported_realm)
 
         # Ensure RealmExport.export_path is excluded from the export and thus None after importing.
         exported_realm_exports = read_json("realm.json")["zerver_realmexport"]
@@ -2046,16 +2026,9 @@ class RealmImportExportTest(ExportFile):
             assert recipient is not None
             return recipient
 
-        def get_recipient_user(r: Realm) -> Recipient:
-            return assert_is_not_none(UserProfile.objects.get(full_name="Iago", realm=r).recipient)
-
         @getter
         def get_stream_recipient_type(r: Realm) -> int:
             return get_recipient_stream(r).type
-
-        @getter
-        def get_user_recipient_type(r: Realm) -> int:
-            return get_recipient_user(r).type
 
         # test subscription
         def get_subscribers(recipient: Recipient) -> set[str]:
@@ -2066,10 +2039,6 @@ class RealmImportExportTest(ExportFile):
         @getter
         def get_stream_subscribers(r: Realm) -> set[str]:
             return get_subscribers(get_recipient_stream(r))
-
-        @getter
-        def get_user_subscribers(r: Realm) -> set[str]:
-            return get_subscribers(get_recipient_user(r))
 
         # test custom profile fields
         @getter
@@ -3417,51 +3386,6 @@ class SingleUserExportTest(ExportFile):
                 (bye_hamlet_message_id, "bye hamlet", hamlet.full_name),
                 (hi_myself_message_id, "hi myself", cordelia.full_name),
                 (bye_stream_message_id, "bye stream", "Denmark"),
-            ],
-        )
-
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
-    def test_message_data_using_personal_recipient(self) -> None:
-        hamlet = self.example_user("hamlet")
-        cordelia = self.example_user("cordelia")
-        othello = self.example_user("othello")
-        bot = self.create_test_bot("test-bot", hamlet)
-
-        hi_hamlet_message_id = self.send_personal_message(othello, hamlet, "hi hamlet")
-        hi_cordelia_message_id = self.send_personal_message(hamlet, cordelia, "hi cordelia")
-        bye_hamlet_message_id = self.send_personal_message(cordelia, hamlet, "bye hamlet")
-        test_bot_message_id = self.send_personal_message(hamlet, bot, "test bot message")
-        self.send_personal_message(othello, cordelia, "an irrelevant message")
-        bye_peeps_message_id = self.send_group_direct_message(
-            othello, [cordelia, hamlet], "bye peeps"
-        )
-        self_message_id = self.send_personal_message(hamlet, hamlet, "hi myself")
-
-        output_dir = make_export_output_dir()
-        hamlet = self.example_user("hamlet")
-
-        with self.assertLogs(level="INFO"):
-            do_export_user(hamlet, output_dir)
-
-        messages = read_json("messages-000001.json")
-
-        excerpt = [
-            (rec["id"], rec["content"], rec["recipient_name"])
-            for rec in messages["zerver_message"][-6:]
-        ]
-        self.assertEqual(
-            excerpt,
-            [
-                (hi_hamlet_message_id, "hi hamlet", hamlet.full_name),
-                (hi_cordelia_message_id, "hi cordelia", cordelia.full_name),
-                (bye_hamlet_message_id, "bye hamlet", hamlet.full_name),
-                (test_bot_message_id, "test bot message", bot.full_name),
-                (
-                    bye_peeps_message_id,
-                    "bye peeps",
-                    f"{cordelia.full_name}, {hamlet.full_name}, {othello.full_name}",
-                ),
-                (self_message_id, "hi myself", hamlet.full_name),
             ],
         )
 

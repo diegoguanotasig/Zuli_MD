@@ -1125,15 +1125,7 @@ class TestMessageNotificationEmails(ZulipTestCase):
     def test_reply_warning_in_missed_personal_messages_with_direct_message_group(self) -> None:
         self._reply_warning_in_missed_personal_messages()
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False, EMAIL_GATEWAY_PATTERN="")
-    def test_reply_warning_in_missed_personal_messages_using_personal_recipients(self) -> None:
-        self._reply_warning_in_missed_personal_messages()
-
     def test_extra_context_in_missed_personal_messages_with_direct_message_group(self) -> None:
-        self._extra_context_in_missed_personal_messages()
-
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
-    def test_extra_context_in_missed_personal_messages_using_personal_recipients(self) -> None:
         self._extra_context_in_missed_personal_messages()
 
     def test_extra_context_in_missed_group_direct_messages_two_others(self) -> None:
@@ -1291,7 +1283,6 @@ class TestMessageNotificationEmails(ZulipTestCase):
         email_subject = "Group DMs with iago and Iago"
         self._test_cases(msg_id, verify_body_include, email_subject)
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_pm_link_in_missed_message_header_using_direct_message_group(self) -> None:
         cordelia = self.example_user("cordelia")
         hamlet = self.example_user("hamlet")
@@ -1375,7 +1366,6 @@ class TestMessageNotificationEmails(ZulipTestCase):
             mail.outbox[2].alternatives[0][0],
         )
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_sender_name_in_missed_pm_using_direct_message_group(self) -> None:
         hamlet = self.example_user("hamlet")
         iago = self.example_user("iago")
@@ -1398,7 +1388,6 @@ class TestMessageNotificationEmails(ZulipTestCase):
             mail.outbox[0].alternatives[0][0],
         )
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_your_name_in_missed_pm_to_self_using_direct_message_group(self) -> None:
         hamlet = self.example_user("hamlet")
 
@@ -2010,16 +1999,16 @@ class TestMessageNotificationEmails(ZulipTestCase):
         message_id = self.send_personal_message(aaron, hamlet)
         recipient_id = Message.objects.get(id=message_id).recipient_id
         synthetic_root_message_id = prepare_synthetic_root_message_id(
-            Recipient.PERSONAL, recipient_id, dm_sender_id=aaron.id
+            Recipient.DIRECT_MESSAGE_GROUP, recipient_id
         )
-        self.assertEqual(synthetic_root_message_id, f"<{recipient_id}.{aaron.id}@testserver>")
+        self.assertEqual(synthetic_root_message_id, f"<{recipient_id}@testserver>")
 
         message_id = self.send_personal_message(cordelia, hamlet)
         recipient_id = Message.objects.get(id=message_id).recipient_id
         synthetic_root_message_id = prepare_synthetic_root_message_id(
-            Recipient.PERSONAL, recipient_id, dm_sender_id=cordelia.id
+            Recipient.DIRECT_MESSAGE_GROUP, recipient_id
         )
-        self.assertEqual(synthetic_root_message_id, f"<{recipient_id}.{cordelia.id}@testserver>")
+        self.assertEqual(synthetic_root_message_id, f"<{recipient_id}@testserver>")
 
         # Verify different `synthetic_root_message_id` for different group-DM to hamlet.
         message_id = self.send_group_direct_message(aaron, [hamlet, cordelia], "Group DM!")

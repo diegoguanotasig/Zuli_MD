@@ -304,7 +304,7 @@ class HomeTest(ZulipTestCase):
 
         # Verify succeeds once logged-in
         with (
-            self.assert_database_query_count(59),
+            self.assert_database_query_count(58),
             patch("zerver.lib.cache.cache_set") as cache_mock,
         ):
             result = self._get_home_page(stream="Denmark")
@@ -604,12 +604,12 @@ class HomeTest(ZulipTestCase):
             # Should be successful after calling 2fa login function.
             self.check_rendered_logged_in_app(result)
 
-    @override_settings(TERMS_OF_SERVICE_VERSION=None, PREFER_DIRECT_MESSAGE_GROUP=True)
+    @override_settings(TERMS_OF_SERVICE_VERSION=None)
     def test_num_queries_for_realm_admin(self) -> None:
         # Verify number of queries for Realm admin isn't much higher than for normal users.
         self.login("iago")
         with (
-            self.assert_database_query_count(59),
+            self.assert_database_query_count(58),
             patch("zerver.lib.cache.cache_set") as cache_mock,
         ):
             result = self._get_home_page()
@@ -641,7 +641,7 @@ class HomeTest(ZulipTestCase):
         self._get_home_page()
 
         # Then for the second page load, measure the number of queries.
-        with self.assert_database_query_count(54):
+        with self.assert_database_query_count(53):
             result = self._get_home_page()
 
         # Do a sanity check that our new streams were in the payload.

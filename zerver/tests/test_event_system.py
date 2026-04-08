@@ -376,7 +376,6 @@ class GetEventsTest(ZulipTestCase):
         request = HostRequestMock(post_data, user_profile, tornado_handler=dummy_handler)
         return view_func(request, user_profile)
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_get_events(self) -> None:
         user_profile = self.example_user("hamlet")
         email = user_profile.email
@@ -518,7 +517,6 @@ class GetEventsTest(ZulipTestCase):
         self.assertTrue("local_message_id" not in recipient_events[1])
         self.assertEqual(recipient_events[1]["message"]["recipient_id"], recipient.id)
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_get_events_narrow(self) -> None:
         user_profile = self.example_user("hamlet")
         self.login_user(user_profile)
@@ -933,7 +931,6 @@ class ClientDescriptorsTest(ZulipTestCase):
             queue_timeout=0,
             realm_id=realm.id,
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
         )
 
         client = allocate_client_descriptor(queue_data)
@@ -988,7 +985,6 @@ class ClientDescriptorsTest(ZulipTestCase):
                 queue_timeout=0,
                 realm_id=realm.id,
                 user_profile_id=hamlet.id,
-                user_recipient_id=hamlet.recipient_id,
             )
 
             client = allocate_client_descriptor(queue_data)
@@ -1036,12 +1032,10 @@ class ClientDescriptorsTest(ZulipTestCase):
                 self,
                 *,
                 user_profile_id: int,
-                user_recipient_id: int | None,
                 apply_markdown: bool,
                 client_gravatar: bool,
             ) -> None:
                 self.user_profile_id = user_profile_id
-                self.user_recipient_id = user_recipient_id
                 self.apply_markdown = apply_markdown
                 self.client_gravatar = client_gravatar
                 self.client_type_name = "whatever"
@@ -1060,28 +1054,24 @@ class ClientDescriptorsTest(ZulipTestCase):
 
         client1 = MockClient(
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
             apply_markdown=True,
             client_gravatar=False,
         )
 
         client2 = MockClient(
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
             apply_markdown=False,
             client_gravatar=False,
         )
 
         client3 = MockClient(
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
             apply_markdown=True,
             client_gravatar=True,
         )
 
         client4 = MockClient(
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
             apply_markdown=False,
             client_gravatar=True,
         )
@@ -1119,7 +1109,6 @@ class ClientDescriptorsTest(ZulipTestCase):
                 # NOTE: Some of these fields are clutter, but some
                 #       will be useful when we let clients specify
                 #       that they can compute their own gravatar URLs.
-                sender_recipient_id=sender.recipient_id,
                 sender_email=sender.email,
                 sender_delivery_email=sender.delivery_email,
                 sender_realm_id=sender.realm_id,
@@ -1250,7 +1239,6 @@ class ReloadWebClientsTest(ZulipTestCase):
             queue_timeout=0,
             realm_id=realm.id,
             user_profile_id=hamlet.id,
-            user_recipient_id=hamlet.recipient_id,
         )
         client = allocate_client_descriptor(queue_data)
 
@@ -1280,7 +1268,7 @@ class FetchQueriesTest(ZulipTestCase):
         self.login_user(user)
 
         with (
-            self.assert_database_query_count(49),
+            self.assert_database_query_count(48),
             mock.patch("zerver.lib.events.always_want") as want_mock,
         ):
             fetch_initial_state_data(user, realm=user.realm)
@@ -1318,7 +1306,7 @@ class FetchQueriesTest(ZulipTestCase):
             realm_user=4,
             realm_user_groups=2,
             realm_user_settings_defaults=1,
-            recent_private_conversations=2,
+            recent_private_conversations=1,
             reminders=1,
             saved_snippets=1,
             scheduled_messages=1,

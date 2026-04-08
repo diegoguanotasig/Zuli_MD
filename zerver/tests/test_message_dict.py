@@ -1,7 +1,6 @@
 from typing import Any
 from unittest import mock
 
-from django.test import override_settings
 from django.utils.timezone import now as timezone_now
 
 from zerver.lib.cache import cache_delete, to_dict_cache_key_id
@@ -85,7 +84,6 @@ class MessageDictTest(ZulipTestCase):
                 allow_empty_topic_name=True,
                 can_access_sender=True,
                 realm_host=get_realm("zulip").host,
-                is_incoming_1_to_1=False,
             )
             return narrow_dict
 
@@ -102,7 +100,6 @@ class MessageDictTest(ZulipTestCase):
                 client_gravatar=client_gravatar,
                 allow_empty_topic_name=True,
                 realm=get_realm("zulip"),
-                user_recipient_id=None,
             )
             final_dict = unhydrated_dict
             return final_dict
@@ -142,7 +139,6 @@ class MessageDictTest(ZulipTestCase):
 
             self.assertEqual(send_message_payload, fetch_payload)
 
-    @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
     def test_bulk_message_fetching(self) -> None:
         sender = self.example_user("othello")
         receiver = self.example_user("hamlet")
@@ -189,7 +185,6 @@ class MessageDictTest(ZulipTestCase):
                 client_gravatar=False,
                 allow_empty_topic_name=True,
                 realm=realm,
-                user_recipient_id=None,
             )
 
         self.assert_length(objs, num_ids)
@@ -375,7 +370,7 @@ class MessageHydrationTest(ZulipTestCase):
         ]
 
         obj = dict(
-            recipient_type=Recipient.PERSONAL,
+            recipient_type=Recipient.DIRECT_MESSAGE_GROUP,
             recipient_type_id=None,
             sender_is_mirror_dummy=False,
             sender_email=cordelia.email,
