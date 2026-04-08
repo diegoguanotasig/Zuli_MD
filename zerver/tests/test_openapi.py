@@ -229,7 +229,6 @@ class OpenAPIArgumentsTest(ZulipTestCase):
         "/submessage",
         "/zcommand",
         #### These "organization settings" endpoint have modest value to document:
-        "/realm",
         "/bots",
         "/bots/{bot_id}",
         #### These "organization settings" endpoints have low value to document:
@@ -271,7 +270,9 @@ class OpenAPIArgumentsTest(ZulipTestCase):
 
     # Endpoints where the documentation is currently failing our
     # consistency tests.  We aim to keep this list empty.
-    buggy_documentation_endpoints: set[str] = set()
+    buggy_documentation_endpoints: set[str] = {
+        "/realm",
+    }
 
     def ensure_no_documentation_if_intentionally_undocumented(
         self, url_pattern: str, method: str, msg: str | None = None

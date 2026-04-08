@@ -481,6 +481,15 @@ def add_realm_domain_owner_auth() -> dict[str, object]:
     return {}
 
 
+@openapi_param_value_generator(["/realm:patch"])
+def update_realm_owner_auth() -> dict[str, object]:
+    # This endpoint requires organization owner permissions for settings
+    # updated by our generated curl examples.
+    owner = helpers.example_user("desdemona")
+    AUTHENTICATION_LINE[0] = f"{owner.email}:{owner.api_key}"
+    return {}
+
+
 @openapi_param_value_generator(["/realm/domains/{domain}:patch"])
 def patch_realm_domain_owner_auth() -> dict[str, object]:
     # This endpoint requires organization owner permissions.

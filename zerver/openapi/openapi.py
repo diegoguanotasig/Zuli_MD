@@ -227,9 +227,16 @@ def get_curl_include_exclude(endpoint: str, method: str) -> list[dict[str, Any]]
         not in openapi_spec.openapi()["paths"][endpoint][method.lower()]
     ):
         return [{"type": "exclude", "parameters": {"enum": [""]}}]
-    return openapi_spec.openapi()["paths"][endpoint][method.lower()]["x-curl-examples-parameters"][
-        "oneOf"
+    curl_examples_parameters = openapi_spec.openapi()["paths"][endpoint][method.lower()][
+        "x-curl-examples-parameters"
     ]
+
+    # Support both the legacy shape ({"oneOf": [...]}) and a direct list of
+    # include/exclude objects.
+    if isinstance(curl_examples_parameters, list):
+        return curl_examples_parameters
+
+    return curl_examples_parameters["oneOf"]
 
 
 def check_requires_administrator(endpoint: str, method: str) -> bool:
