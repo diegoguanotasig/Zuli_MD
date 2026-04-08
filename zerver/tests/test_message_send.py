@@ -2894,7 +2894,7 @@ class PersonalMessageSendTest(ZulipTestCase):
         user_profile = self.example_user("hamlet")
         cordelia = self.example_user("cordelia")
 
-        with self.assert_database_query_count(25):
+        with self.assert_database_query_count(27):
             self.send_personal_message(user_profile, cordelia)
 
     @override_settings(PREFER_DIRECT_MESSAGE_GROUP=False)
@@ -2975,7 +2975,7 @@ class PersonalMessageSendTest(ZulipTestCase):
 
         # Have the administrator send a message, and verify that allows the user to reply.
         self.send_personal_message(admin, user_profile)
-        with self.assert_database_query_count(19):
+        with self.assert_database_query_count(21):
             self.send_personal_message(user_profile, admin)
 
         # Tests that user cannot initiate direct message thread in groups.
@@ -2985,7 +2985,7 @@ class PersonalMessageSendTest(ZulipTestCase):
         # Have the administrator send a message to the direct message group, and verify
         # that allows the user to reply.
         self.send_group_direct_message(admin, direct_message_group_1)
-        with self.assert_database_query_count(20):
+        with self.assert_database_query_count(22):
             self.send_group_direct_message(user_profile, direct_message_group_1)
 
         # We cannot sent to `direct_message_group_2` as no message has been sent to this group yet.
@@ -3011,7 +3011,7 @@ class PersonalMessageSendTest(ZulipTestCase):
             user_group,
             acting_user=None,
         )
-        with self.assert_database_query_count(19):
+        with self.assert_database_query_count(21):
             self.send_personal_message(user_profile, cordelia)
 
         # Test that query count decreases if setting is set to a system group.
@@ -3025,7 +3025,7 @@ class PersonalMessageSendTest(ZulipTestCase):
             acting_user=None,
         )
         othello = self.example_user("othello")
-        with self.assert_database_query_count(24):
+        with self.assert_database_query_count(26):
             self.send_personal_message(user_profile, othello)
 
     @override_settings(PREFER_DIRECT_MESSAGE_GROUP=True)
@@ -3054,7 +3054,7 @@ class PersonalMessageSendTest(ZulipTestCase):
             acting_user=None,
         )
         # Tests if the user is allowed to send to administrators.
-        with self.assert_database_query_count(25):
+        with self.assert_database_query_count(27):
             self.send_personal_message(user_profile, admin)
         self.send_personal_message(admin, user_profile)
         # Tests if we can send messages to self irrespective of the value of the setting.
@@ -3072,7 +3072,7 @@ class PersonalMessageSendTest(ZulipTestCase):
 
         # We can send to this direct message group as it has administrator as one of the
         # recipient.
-        with self.assert_database_query_count(24):
+        with self.assert_database_query_count(26):
             self.send_group_direct_message(user_profile, direct_message_group)
         self.send_group_direct_message(admin, direct_message_group)
 
@@ -3104,7 +3104,7 @@ class PersonalMessageSendTest(ZulipTestCase):
         with self.assertRaises(DirectMessagePermissionError):
             self.send_personal_message(cordelia, polonius)
 
-        with self.assert_database_query_count(19):
+        with self.assert_database_query_count(21):
             self.send_personal_message(user_profile, cordelia)
 
         # Test that query count decreases if setting is set to a system group.
@@ -3117,7 +3117,7 @@ class PersonalMessageSendTest(ZulipTestCase):
             members_group,
             acting_user=None,
         )
-        with self.assert_database_query_count(18):
+        with self.assert_database_query_count(20):
             self.send_personal_message(user_profile, cordelia)
 
         do_change_realm_permission_group_setting(
@@ -3143,6 +3143,23 @@ class PersonalMessageSendTest(ZulipTestCase):
             receiver=self.example_user("othello"),
             content="hümbüǵ",
         )
+
+    def test_direct_message_group_stats(self) -> None:
+        hamlet = self.example_user("hamlet")
+        cordelia = self.example_user("cordelia")
+        polonius = self.example_user("polonius")
+
+        first_message_id = self.send_group_direct_message(hamlet, [cordelia, polonius])
+        self.send_group_direct_message(hamlet, [cordelia, polonius])
+        self.send_group_direct_message(hamlet, [cordelia, polonius])
+        last_message_id = self.send_group_direct_message(hamlet, [cordelia, polonius])
+
+        direct_message_group = get_or_create_direct_message_group(
+            id_list=[hamlet.id, polonius.id, cordelia.id]
+        )
+        self.assertEqual(direct_message_group.total_messages, 4)
+        self.assertEqual(direct_message_group.first_message_id, first_message_id)
+        self.assertEqual(direct_message_group.last_message_id, last_message_id)
 
 
 class ExtractTest(ZulipTestCase):
