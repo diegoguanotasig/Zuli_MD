@@ -19,6 +19,7 @@ import {$t} from "./i18n.ts";
 import * as keydown_util from "./keydown_util.ts";
 import * as message_lists from "./message_lists.ts";
 import * as message_store from "./message_store.ts";
+import * as message_util from "./message_util.ts";
 import * as muted_users from "./muted_users.ts";
 import {page_params} from "./page_params.ts";
 import * as people from "./people.ts";
@@ -618,6 +619,7 @@ export function get_pm_people(query: string): (UserGroupPillData | UserPillData)
         stream_id: compose_state.stream_id(),
         topic: compose_state.topic(),
         filter_groups_for_dm: true,
+        filter_by_dm_permission: true,
     };
     const suggestions = get_person_suggestions(query, opts, true);
     const current_user_ids = compose_pm_pill.get_user_ids();
@@ -650,6 +652,7 @@ type PersonSuggestionOpts = {
     filter_groups_for_dm?: boolean;
     filter_groups_for_mention?: boolean;
     allow_custom_profile_field_matching?: boolean;
+    filter_by_dm_permission?: boolean;
 };
 
 function filter_persons<T>(
@@ -657,6 +660,7 @@ function filter_persons<T>(
     filter_pills: boolean,
     want_broadcast: boolean,
     filterer: (person_items: UserPillData[], broadcast_items: UserOrMentionPillData[]) => T[],
+    filter_by_dm_permission = false,
 ): T[] {
     let persons;
 
@@ -668,6 +672,15 @@ function filter_persons<T>(
 
     // Exclude muted users from typeaheads.
     persons = muted_users.filter_muted_users(persons);
+
+    if (filter_by_dm_permission) {
+        const current_recipient_ids = compose_state.private_message_recipient_ids();
+        persons = persons.filter((person) =>
+            message_util.user_can_send_direct_message(
+                [...new Set([...current_recipient_ids, person.user_id])].join(","),
+            ),
+        );
+    }
     const person_items: UserPillData[] = persons.map((person) => ({
         type: "user",
         user: person,
@@ -705,9 +718,16 @@ export function get_person_suggestion_for_topic_typeahead(query: string): UserPi
     let dm_people;
 
     if (current_narrow_participant_ids) {
+        // Check DM permissions for the user suggestion only, since we
+        // will reset any previously selected DM recipients.
         participants_people = util.try_parse_as_truthy(
             [...current_narrow_participant_ids]
-                .filter((user_id) => user_id !== current_user.user_id)
+                .filter(
+                    (user_id) =>
+                        user_id !== current_user.user_id &&
+                        people.is_person_active(user_id) &&
+                        message_util.user_can_send_direct_message(String(user_id)),
+                )
                 .map((user_id) => people.maybe_get_user_by_id(user_id))
                 .filter(Boolean),
         );
@@ -719,7 +739,12 @@ export function get_person_suggestion_for_topic_typeahead(query: string): UserPi
         dm_people = util.try_parse_as_truthy(
             pm_conversations
                 .get_partners()
-                .filter((user_id) => !current_narrow_participant_ids?.has(user_id))
+                .filter(
+                    (user_id) =>
+                        !current_narrow_participant_ids?.has(user_id) &&
+                        people.is_person_active(user_id) &&
+                        message_util.user_can_send_direct_message(String(user_id)),
+                )
                 .map((user_id) => people.maybe_get_user_by_id(user_id))
                 .filter(Boolean),
         );
@@ -862,6 +887,7 @@ export function get_person_suggestions(
         opts.filter_pills,
         opts.want_broadcast,
         filterer,
+        opts.filter_by_dm_permission,
     );
 
     let filtered_persons: UserOrMentionPillData[];
@@ -875,6 +901,7 @@ export function get_person_suggestions(
                 opts.filter_pills,
                 opts.want_broadcast,
                 filterer,
+                opts.filter_by_dm_permission,
             );
         } else {
             filtered_persons = filter_persons(
@@ -882,6 +909,7 @@ export function get_person_suggestions(
                 opts.filter_pills,
                 opts.want_broadcast,
                 filterer,
+                opts.filter_by_dm_permission,
             );
         }
     }
