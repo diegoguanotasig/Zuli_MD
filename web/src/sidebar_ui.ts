@@ -1,5 +1,7 @@
 import $ from "jquery";
 import _ from "lodash";
+import assert from "minimalistic-assert";
+import type * as tippy from "tippy.js";
 
 import render_left_sidebar from "../templates/left_sidebar.hbs";
 import render_buddy_list_popover from "../templates/popovers/buddy_list_popover.hbs";
@@ -392,6 +394,18 @@ export function initialize_right_sidebar(): void {
         }
     });
 
+    function update_section_toggle_tooltip(toggle: HTMLElement): void {
+        const toggle_element: tippy.ReferenceElement & HTMLElement = util.the($(toggle));
+        const tippy_instance = toggle_element._tippy;
+        if (tippy_instance) {
+            if ($(toggle).hasClass("rotate-icon-down")) {
+                tippy_instance.setContent($t({defaultMessage: "Collapse section"}));
+            } else {
+                tippy_instance.setContent($t({defaultMessage: "Expand section"}));
+            }
+        }
+    }
+
     $("#buddy-list-users-matching-view-container").on(
         "click",
         ".buddy-list-subsection-header",
@@ -401,15 +415,51 @@ export function initialize_right_sidebar(): void {
         },
     );
 
+    $("#buddy-list-users-matching-view-container").on(
+        "keydown",
+        ".buddy-list-section-toggle",
+        function (this: HTMLElement, e) {
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                buddy_list.toggle_users_matching_view_section();
+                update_section_toggle_tooltip(this);
+            }
+        },
+    );
+
     $("#buddy-list-participants-container").on("click", ".buddy-list-subsection-header", (e) => {
         e.stopPropagation();
         buddy_list.toggle_participants_section();
     });
 
+    $("#buddy-list-participants-container").on(
+        "keydown",
+        ".buddy-list-section-toggle",
+        function (this: HTMLElement, e) {
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                buddy_list.toggle_participants_section();
+                update_section_toggle_tooltip(this);
+            }
+        },
+    );
+
     $("#buddy-list-other-users-container").on("click", ".buddy-list-subsection-header", (e) => {
         e.stopPropagation();
         buddy_list.toggle_other_users_section();
     });
+
+    $("#buddy-list-other-users-container").on(
+        "keydown",
+        ".buddy-list-section-toggle",
+        function (this: HTMLElement, e) {
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                buddy_list.toggle_other_users_section();
+                update_section_toggle_tooltip(this);
+            }
+        },
+    );
 
     function close_buddy_list_popover(): void {
         if (popover_menus.popover_instances.buddy_list !== null) {
@@ -418,33 +468,37 @@ export function initialize_right_sidebar(): void {
         }
     }
 
-    popover_menus.register_popover_menu("#buddy-list-menu-icon", {
-        theme: "popover-menu",
-        placement: "right",
-        onCreate(instance) {
-            popover_menus.popover_instances.buddy_list = instance;
-            instance.setContent(
-                ui_util.parse_html(
-                    render_buddy_list_popover({
-                        display_style_options: settings_config.user_list_style_values,
-                        can_invite_users:
-                            settings_data.user_can_invite_users_by_email() ||
-                            settings_data.user_can_create_multiuse_invite(),
-                    }),
-                ),
-            );
+    popover_menus.register_popover_menu(
+        "#buddy-list-menu-icon",
+        {
+            theme: "popover-menu",
+            placement: "right",
+            onCreate(instance) {
+                popover_menus.popover_instances.buddy_list = instance;
+                instance.setContent(
+                    ui_util.parse_html(
+                        render_buddy_list_popover({
+                            display_style_options: settings_config.user_list_style_values,
+                            can_invite_users:
+                                settings_data.user_can_invite_users_by_email() ||
+                                settings_data.user_can_create_multiuse_invite(),
+                        }),
+                    ),
+                );
+            },
+            onMount() {
+                const current_user_list_style =
+                    settings_preferences.user_settings_panel.settings_object.user_list_style;
+                $("#buddy-list-actions-menu-popover")
+                    .find(`.user_list_style_choice[value=${current_user_list_style}]`)
+                    .prop("checked", true);
+            },
+            onHidden() {
+                close_buddy_list_popover();
+            },
         },
-        onMount() {
-            const current_user_list_style =
-                settings_preferences.user_settings_panel.settings_object.user_list_style;
-            $("#buddy-list-actions-menu-popover")
-                .find(`.user_list_style_choice[value=${current_user_list_style}]`)
-                .prop("checked", true);
-        },
-        onHidden() {
-            close_buddy_list_popover();
-        },
-    });
+        true,
+    );
 
     $("body").on(
         "click",
@@ -639,6 +693,95 @@ const update_left_sidebar_for_search = _.throttle(() => {
     }
 }, 50);
 
+function focus_left_sidebar_row($row: JQuery): void {
+    // For header rows, focus the section toggle icon.
+    if ($row.hasClass("left-sidebar-section-header")) {
+        util.the($row.find(".sidebar-heading-icon")).focus({preventScroll: true});
+        return;
+    }
+    // For focusable rows, either they have an <a> tag that gets
+    // focus, or a tabindex="0" label directly on them. Determine
+    // which case we're in and focus the appropriate element.
+    const $link = $row.find("a");
+    if ($link.length > 0) {
+        util.the($link).focus({preventScroll: true});
+        return;
+    }
+    if (util.the($row).tabIndex === 0) {
+        util.the($row).focus({preventScroll: true});
+    }
+}
+
+// Handle arrow key navigation from any Tab-focused left sidebar
+// element. Syncs the cursor to the focused element's row,
+// navigates, and moves focus to the new row.
+function handle_left_sidebar_arrow_navigation(e: JQuery.KeyDownEvent): void {
+    // Let the browser handle Tab navigation, so clear any highlights from
+    // `left_sidebar_cursor`.
+    if (e.key === "Tab") {
+        left_sidebar_cursor.clear();
+        return;
+    }
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+        return;
+    }
+    if (e.altKey || e.ctrlKey || e.shiftKey) {
+        return;
+    }
+    if (!document.activeElement) {
+        return;
+    }
+
+    // There are existing arrow key handlers for when search inputs
+    // have focus.
+    const $active_element = $(document.activeElement);
+    if (
+        $active_element.is(
+            ".left-sidebar-search-input, .direct-messages-list-filter, #topic_filter_query",
+        )
+    ) {
+        return;
+    }
+
+    // Find the navigable row containing the focused element.
+    const $row = $active_element.closest(
+        ".top_left_row, .bottom_left_row, .left-sidebar-section-header",
+    );
+    if ($row.length > 0) {
+        // Sync the cursor to the focused row, then navigate.
+        left_sidebar_cursor.set_is_highlight_visible(true);
+        left_sidebar_cursor.go_to($row);
+
+        if (e.key === "ArrowUp") {
+            left_sidebar_cursor.prev();
+        } else {
+            left_sidebar_cursor.next();
+        }
+    } else if (
+        $active_element.closest("#subscribe-to-more-streams").length > 0 &&
+        e.key === "ArrowUp"
+    ) {
+        // The "browse channels" / "create a channel" link sits below
+        // all channel rows. ArrowUp goes to the last visible row.
+        const $last_row = all_rows().last();
+        if ($last_row.length === 0) {
+            return;
+        }
+        left_sidebar_cursor.set_is_highlight_visible(true);
+        left_sidebar_cursor.go_to($last_row);
+    } else {
+        return;
+    }
+
+    // Move focus to the newly selected row.
+    const $new_row = left_sidebar_cursor.get_key();
+    assert($new_row !== undefined);
+    focus_left_sidebar_row($new_row);
+
+    e.preventDefault();
+    e.stopPropagation();
+}
+
 function focus_left_sidebar_filter(e: JQuery.ClickEvent): void {
     left_sidebar_cursor.reset();
     e.stopPropagation();
@@ -708,6 +851,19 @@ export function set_event_handlers(): void {
                 left_sidebar_cursor.next();
                 return true;
             },
+            Tab() {
+                // If the user navigated to a row with arrows,
+                // Tab should focus that row instead of the next
+                // element in DOM order.
+                const $row = left_sidebar_cursor.get_key();
+                if ($row !== undefined && left_sidebar_cursor.is_highlight_visible) {
+                    focus_left_sidebar_row($row);
+                    left_sidebar_cursor.clear();
+                    return false;
+                }
+                left_sidebar_cursor.clear();
+                return false;
+            },
         },
     });
 
@@ -716,6 +872,10 @@ export function set_event_handlers(): void {
         left_sidebar_cursor.clear();
     });
     $search_input.on("input", update_left_sidebar_for_search);
+
+    // Handle arrow key navigation when a sidebar element has Tab
+    // focus, so that Tab and arrow key navigation stay in sync.
+    $("#left-sidebar").on("keydown", handle_left_sidebar_arrow_navigation);
 }
 
 export function initiate_search(): void {

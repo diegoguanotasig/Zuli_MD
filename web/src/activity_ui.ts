@@ -306,7 +306,146 @@ export let set_cursor_and_filter = (): void => {
                 user_cursor!.next();
                 return true;
             },
+            Tab() {
+                // If the user navigated to a row with arrows,
+                // Tab should focus that row instead of the next
+                // element in DOM order.
+                assert(user_cursor !== undefined);
+                const cursor_key = user_cursor.get_key();
+                if (cursor_key !== undefined && user_cursor.is_highlight_visible) {
+                    const $li = buddy_list.find_li({key: cursor_key, force_render: true})!;
+                    util.the($li.find("a.user-presence-link")).focus({preventScroll: true});
+                    user_cursor.clear();
+                    return false;
+                }
+                user_cursor.clear();
+                return false;
+            },
         },
+    });
+
+    // Handle arrow key navigation when a buddy list element has Tab
+    // focus, so that Tab and arrow key navigation stay in sync.
+    $("#buddy_list_wrapper").on("keydown", (e) => {
+        // Let the browser handle Tab navigation.
+        if (e.key === "Tab") {
+            if (user_cursor) {
+                user_cursor.clear();
+            }
+            return;
+        }
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+            return;
+        }
+        if (e.altKey || e.ctrlKey || e.shiftKey) {
+            return;
+        }
+
+        const active_element = document.activeElement;
+        if (!active_element) {
+            return;
+        }
+        const $active_element = $(active_element);
+        const $active_user_row = $active_element.closest("li.user_sidebar_entry");
+        const $buddy_list_section = $active_element.closest(".buddy-list-section-container");
+
+        assert(user_cursor !== undefined);
+
+        if ($active_user_row.length > 0) {
+            // Focused element is inside a user row; sync cursor
+            // to it, then navigate to the adjacent user.
+            const user_id = buddy_list.get_user_id_from_li({$li: $active_user_row});
+            user_cursor.set_is_highlight_visible(true);
+            user_cursor.go_to(user_id);
+            if (e.key === "ArrowUp") {
+                user_cursor.prev();
+            } else {
+                user_cursor.next();
+            }
+        } else if ($active_element.closest(".buddy-list-subsection-header").length > 0) {
+            // Focused on a section header (e.g., section toggle).
+            // Jump directly to the nearest user in the pressed direction.
+            let $entry;
+            if (e.key === "ArrowDown") {
+                $entry = $buddy_list_section
+                    .nextAll()
+                    .addBack()
+                    .not(".collapsed")
+                    .find("li.user_sidebar_entry")
+                    .first();
+            } else {
+                $entry = $buddy_list_section
+                    .prevAll()
+                    .not(".collapsed")
+                    .find("li.user_sidebar_entry")
+                    .last();
+            }
+            if ($entry.length === 0) {
+                return;
+            }
+            const user_id = buddy_list.get_user_id_from_li({$li: $entry});
+            user_cursor.set_is_highlight_visible(true);
+            user_cursor.go_to(user_id);
+        } else if ($active_element.closest(".view-all-subscribers-link").length > 0) {
+            // "View all subscribers" is below users in the users-matching-view
+            //  section. ArrowDown should highlight the first user in the next
+            // section, ArrowUp should highlight the last user in this section.
+            let $next_user_row;
+            if (e.key === "ArrowDown") {
+                $next_user_row = $buddy_list_section
+                    .nextAll()
+                    .not(".collapsed")
+                    .find("li.user_sidebar_entry")
+                    .first();
+            } else {
+                $next_user_row = $buddy_list_section
+                    .prevAll()
+                    .addBack()
+                    .not(".collapsed")
+                    .find("li.user_sidebar_entry")
+                    .last();
+            }
+            if ($next_user_row.length === 0) {
+                return;
+            }
+            const user_id = buddy_list.get_user_id_from_li({$li: $next_user_row});
+            user_cursor.set_is_highlight_visible(true);
+            user_cursor.go_to(user_id);
+        } else if (
+            $active_element.closest(".view-all-users-link").length > 0 ||
+            $active_element.closest(".invite-user-shortcut").length > 0
+        ) {
+            // "View all users" and "Invite to organization" are at
+            // the bottom of the buddy list; nothing below them.
+            if (e.key === "ArrowDown") {
+                return;
+            }
+            const $last_user_row = $(
+                "#buddy_list_wrapper .buddy-list-section-container:not(.collapsed) li.user_sidebar_entry",
+            ).last();
+            if ($last_user_row.length === 0) {
+                return;
+            }
+            const user_id = buddy_list.get_user_id_from_li({$li: $last_user_row});
+            user_cursor.set_is_highlight_visible(true);
+            user_cursor.go_to(user_id);
+        } else {
+            blueslip.error("Unexpected focused element in buddy list", {
+                element: active_element.nodeName,
+                class: active_element.className,
+            });
+            return;
+        }
+
+        // Move focus to the newly selected user row.
+        const new_user_id = user_cursor.get_key();
+        assert(new_user_id !== undefined);
+        const $li = buddy_list.find_li({key: new_user_id, force_render: true});
+        assert($li !== undefined && $li.length > 0);
+        util.the($li.find("a.user-presence-link")).focus({preventScroll: true});
+        // Prevent default and propagation now that we know a change was made.
+        e.preventDefault();
+        e.stopPropagation();
     });
 };
 

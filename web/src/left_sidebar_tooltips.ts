@@ -143,7 +143,7 @@ export function initialize(): void {
     });
 
     tippy.delegate("body", {
-        target: "#add_streams_tooltip",
+        target: "#streams_inline_icon",
         onShow(instance) {
             const can_create_streams =
                 settings_data.user_can_create_private_streams() ||
@@ -193,6 +193,40 @@ export function initialize(): void {
                 instance.setContent($t({defaultMessage: "Expand direct messages"}));
             }
             return undefined;
+        },
+        delay: EXTRA_LONG_HOVER_DELAY,
+        appendTo: () => document.body,
+        onHidden(instance) {
+            instance.destroy();
+        },
+    });
+
+    tippy.delegate("body", {
+        target: ".folder-toggle-tooltip-target",
+        onShow(instance) {
+            const $toggle = $(instance.reference);
+            if ($toggle.hasClass("rotate-icon-down")) {
+                instance.setContent($t({defaultMessage: "Collapse folder"}));
+            } else {
+                instance.setContent($t({defaultMessage: "Expand folder"}));
+            }
+        },
+        delay: EXTRA_LONG_HOVER_DELAY,
+        appendTo: () => document.body,
+        onHidden(instance) {
+            instance.destroy();
+        },
+    });
+
+    tippy.delegate("body", {
+        target: ".section-toggle-tooltip-target",
+        onShow(instance) {
+            const $toggle = $(instance.reference);
+            if ($toggle.hasClass("rotate-icon-down")) {
+                instance.setContent($t({defaultMessage: "Collapse section"}));
+            } else {
+                instance.setContent($t({defaultMessage: "Expand section"}));
+            }
         },
         delay: EXTRA_LONG_HOVER_DELAY,
         appendTo: () => document.body,
