@@ -1602,6 +1602,25 @@ export function set_event_handlers({
     );
 
     $("#streams_list").on(
+        "keydown",
+        ".stream-list-section-container .stream-list-section-toggle",
+        function (this: tippy.ReferenceElement, e: JQuery.KeyDownEvent) {
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                toggle_section_collapse($(this).closest(".stream-list-section-container"));
+                const tippy_instance = this._tippy;
+                if (tippy_instance) {
+                    if ($(this).hasClass("rotate-icon-down")) {
+                        tippy_instance.setContent($t({defaultMessage: "Collapse folder"}));
+                    } else {
+                        tippy_instance.setContent($t({defaultMessage: "Expand folder"}));
+                    }
+                }
+            }
+        },
+    );
+
+    $("#streams_list").on(
         "click",
         ".stream-list-section-container .add-stream-icon-container",
         (e) => {
