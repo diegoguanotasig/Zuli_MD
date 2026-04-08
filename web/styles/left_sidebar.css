@@ -68,6 +68,11 @@
         cursor: pointer;
     }
 
+    &:focus-visible {
+        outline: 2px solid var(--color-outline-focus);
+        outline-offset: -2px;
+    }
+
     .add_stream_icon {
         /* We display as flex to center the icon while
            keeping the entire highlighted area clickable. */
@@ -426,6 +431,11 @@
             color: var(--color-vdots-hover);
             background-color: var(--color-background-sidebar-action-hover);
         }
+
+        &:focus-visible {
+            outline: 2px solid var(--color-outline-focus);
+            outline-offset: -2px;
+        }
     }
 }
 
@@ -483,7 +493,7 @@
         visibility: hidden;
     }
 
-    .add-stream-icon-container:focus-visible .add_stream_icon {
+    .add_stream_icon:focus-visible {
         visibility: visible;
     }
 

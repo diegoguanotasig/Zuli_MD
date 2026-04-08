@@ -72,46 +72,50 @@ function collapse_all_sections(instance: tippy.Instance): void {
 }
 
 export function initialize(): void {
-    popover_menus.register_popover_menu("#left-sidebar-search .channel-folders-sidebar-menu-icon", {
-        ...popover_menus.left_sidebar_tippy_options,
-        theme: "popover-menu",
-        onMount(instance) {
-            const $popper = $(instance.popper);
-            assert(instance.reference instanceof HTMLElement);
-            $popper.one("click", "#left_sidebar_channel_folders", () => {
-                do_change_show_channel_folders_left_sidebar(instance);
-            });
-            $popper.one("click", "#left_sidebar_expand_all", () => {
-                expand_all_sections(instance);
-            });
-            $popper.one("click", "#left_sidebar_collapse_all", () => {
-                collapse_all_sections(instance);
-            });
-        },
-        onShow(instance) {
-            const show_channel_folders = user_settings.web_left_sidebar_show_channel_folders;
-            const show_collapse_expand_all_options = true;
-            // Assuming that the instance can be shown, track and
-            // prep the instance for showing
-            popover_menus.popover_instances.show_folders_sidebar = instance;
-            instance.setContent(
-                ui_util.parse_html(
-                    render_channel_folder_setting_popover({
-                        show_channel_folders,
-                        channel_folders_id: "left_sidebar_channel_folders",
-                        show_collapse_expand_all_options,
-                    }),
-                ),
-            );
-            popover_menus.on_show_prep(instance);
+    popover_menus.register_popover_menu(
+        "#left-sidebar-search .channel-folders-sidebar-menu-icon",
+        {
+            ...popover_menus.left_sidebar_tippy_options,
+            theme: "popover-menu",
+            onMount(instance) {
+                const $popper = $(instance.popper);
+                assert(instance.reference instanceof HTMLElement);
+                $popper.one("click", "#left_sidebar_channel_folders", () => {
+                    do_change_show_channel_folders_left_sidebar(instance);
+                });
+                $popper.one("click", "#left_sidebar_expand_all", () => {
+                    expand_all_sections(instance);
+                });
+                $popper.one("click", "#left_sidebar_collapse_all", () => {
+                    collapse_all_sections(instance);
+                });
+            },
+            onShow(instance) {
+                const show_channel_folders = user_settings.web_left_sidebar_show_channel_folders;
+                const show_collapse_expand_all_options = true;
+                // Assuming that the instance can be shown, track and
+                // prep the instance for showing
+                popover_menus.popover_instances.show_folders_sidebar = instance;
+                instance.setContent(
+                    ui_util.parse_html(
+                        render_channel_folder_setting_popover({
+                            show_channel_folders,
+                            channel_folders_id: "left_sidebar_channel_folders",
+                            show_collapse_expand_all_options,
+                        }),
+                    ),
+                );
+                popover_menus.on_show_prep(instance);
 
-            return undefined;
+                return undefined;
+            },
+            onHidden(instance) {
+                instance.destroy();
+                popover_menus.popover_instances.show_folders_sidebar = null;
+            },
         },
-        onHidden(instance) {
-            instance.destroy();
-            popover_menus.popover_instances.show_folders_sidebar = null;
-        },
-    });
+        true,
+    );
 
     popover_menus.register_popover_menu("#inbox-view .channel-folders-inbox-menu-icon", {
         ...popover_menus.left_sidebar_tippy_options,
