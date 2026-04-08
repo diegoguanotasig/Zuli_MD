@@ -347,8 +347,8 @@ paths:
         `event_queue_longpoll_timeout_seconds` property returned by
         `POST /register` as the client-side HTTP request timeout for
         calls to this endpoint. It is guaranteed to be higher than
-        heartbeat timeout and should be respected by clients to
-        avoid breaking when heartbeat timeout increases.
+        heartbeat frequency and should be respected by clients to
+        avoid breaking when heartbeat frequency increases.
       x-curl-examples-parameters:
         oneOf:
           - type: include
@@ -4401,9 +4401,9 @@ paths:
                             - type: object
                               additionalProperties: false
                               description: |
-                                Event sent to all users in a Zulip organization when a new domain has been
-                                added to the set of [allowed domains for account creation and email
-                                changes](/help/restrict-account-creation#configuring-email-domain-restrictions).
+                                Event sent to all users in a Zulip organization when the set of
+                                [allowed domains for new users](/help/restrict-account-creation#configuring-email-domain-restrictions)
+                                has changed.
                               properties:
                                 id:
                                   $ref: "#/components/schemas/EventIdSchema"
@@ -4417,10 +4417,7 @@ paths:
                                   enum:
                                     - add
                                 realm_domain:
-                                  allOf:
-                                    - $ref: "#/components/schemas/RealmDomain"
-                                    - description: |
-                                        Object containing details of the newly added domain.
+                                  $ref: "#/components/schemas/RealmDomain"
                               example:
                                 {
                                   "type": "realm_domains",
@@ -4436,8 +4433,7 @@ paths:
                               additionalProperties: false
                               description: |
                                 Event sent to all users in a Zulip organization when the set of
-                                [allowed domains for account creation and email
-                                changes](/help/restrict-account-creation#configuring-email-domain-restrictions)
+                                [allowed domains for new users](/help/restrict-account-creation#configuring-email-domain-restrictions)
                                 has changed.
                               properties:
                                 id:
@@ -4452,10 +4448,19 @@ paths:
                                   enum:
                                     - change
                                 realm_domain:
-                                  allOf:
-                                    - $ref: "#/components/schemas/RealmDomain"
-                                    - description: |
-                                        Object containing details of the edited domain.
+                                  type: object
+                                  additionalProperties: false
+                                  description: |
+                                    Object containing details of the edited domain.
+                                  properties:
+                                    domain:
+                                      type: string
+                                      description: |
+                                        The domain whose settings have changed.
+                                    allow_subdomains:
+                                      type: boolean
+                                      description: |
+                                        Whether subdomains are allowed for this domain.
                               example:
                                 {
                                   "type": "realm_domains",
@@ -4470,9 +4475,9 @@ paths:
                             - type: object
                               additionalProperties: false
                               description: |
-                                Event sent to all users in a Zulip organization when a domain has been
-                                removed from the set of [allowed domains for account creation and email
-                                changes](/help/restrict-account-creation#configuring-email-domain-restrictions).
+                                Event sent to all users in a Zulip organization when the set of
+                                [allowed domains for new users](/help/restrict-account-creation#configuring-email-domain-restrictions)
+                                has changed.
                               properties:
                                 id:
                                   $ref: "#/components/schemas/EventIdSchema"
@@ -8766,18 +8771,11 @@ paths:
                   example: direct
                 to:
                   description: |
-                    The channel or users receiving the message.
+                    For channel messages, either the name or integer ID of the channel. For
+                    direct messages, either a list containing integer user IDs or a list
+                    containing string Zulip API email addresses.
 
-                    For channel messages, this is either the name or integer ID of the
-                    channel.
-
-                    For direct messages, this is either a list containing integer user IDs or
-                    a list containing string Zulip API email addresses. The ID or email
-                    address of the user sending the message can be included in the list, but
-                    will be ignored by the server, unless the user sending the message is the
-                    only recipient of the message.
-
-                    **Changes**: In Zulip 2.0.0, support for using user/channel IDs was added.
+                    **Changes**: Support for using user/channel IDs was added in Zulip 2.0.0.
                   oneOf:
                     - type: string
                     - type: integer
@@ -12146,128 +12144,6 @@ paths:
                       "server_timestamp": 1656958539.6287155,
                       "presence_last_update_id": 1000,
                     }
-  /users/me/profile_data:
-    patch:
-      operationId: update-profile-data
-      summary: Update your profile data
-      tags: ["users"]
-      description: |
-        Update the current user's [profile data](/help/edit-your-profile) for
-        one or more of the [custom profile fields](/help/custom-profile-fields)
-        configured in the organization.
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              additionalProperties: false
-              properties:
-                data:
-                  description: |
-                    An array of objects describing updates to the custom profile
-                    field data for the user.
-                  type: array
-                  example:
-                    [{"id": 4, "value": "0"}, {"id": 5, "value": "1909-04-05"}]
-                  items:
-                    $ref: "#/components/schemas/ProfileDataUpdate"
-              required:
-                - data
-            encoding:
-              data:
-                contentType: application/json
-      responses:
-        "200":
-          $ref: "#/components/responses/SimpleSuccess"
-        "400":
-          description: Bad request.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - allOf:
-                      - $ref: "#/components/schemas/CodedError"
-                      - example:
-                          {
-                            "result": "error",
-                            "msg": "You are not allowed to change this field. Contact an administrator to update it.",
-                            "code": "BAD_REQUEST",
-                          }
-                        description: |
-                          An example JSON error response when editing custom profile fields
-                          is restricted in the organization:
-                  - allOf:
-                      - $ref: "#/components/schemas/CodedError"
-                      - example:
-                          {
-                            "result": "error",
-                            "msg": "Field id 99 not found.",
-                            "code": "BAD_REQUEST",
-                          }
-                        description: |
-                          An example JSON error response when a custom profile field
-                          ID does not exist:
-    delete:
-      operationId: remove-profile-data
-      summary: Remove your profile data
-      tags: ["users"]
-      description: |
-        Remove the current user's [profile data](/help/edit-your-profile) for
-        one or more of the [custom profile fields](/help/custom-profile-fields)
-        configured in the organization.
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              additionalProperties: false
-              properties:
-                data:
-                  description: |
-                    An array of custom profile field IDs to remove any data set for
-                    the user.
-                  type: array
-                  example: [1]
-                  items:
-                    type: integer
-              required:
-                - data
-            encoding:
-              data:
-                contentType: application/json
-      responses:
-        "200":
-          $ref: "#/components/responses/SimpleSuccess"
-        "400":
-          description: Bad request.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - allOf:
-                      - $ref: "#/components/schemas/CodedError"
-                      - example:
-                          {
-                            "result": "error",
-                            "msg": "You are not allowed to change this field. Contact an administrator to update it.",
-                            "code": "BAD_REQUEST",
-                          }
-                        description: |
-                          An example JSON error response when editing custom profile fields
-                          is restricted in the organization:
-                  - allOf:
-                      - $ref: "#/components/schemas/CodedError"
-                      - example:
-                          {
-                            "result": "error",
-                            "msg": "Field id 99 not found.",
-                            "code": "BAD_REQUEST",
-                          }
-                        description: |
-                          An example JSON error response when a custom profile field
-                          ID does not exist:
   /users/me/status:
     post:
       operationId: update-status
@@ -12437,9 +12313,6 @@ paths:
         [bot](/help/bots-overview#bot-type) will only have access to messages
         sent after the bot was subscribed to the channel, instead of when the
         user subscribed.
-
-        **Changes**: Before Zulip 12.0 (feature level 480), this
-        endpoint was not supported for archived channels.
       parameters:
         - $ref: "#/components/parameters/ChannelIdInPath"
         - name: allow_empty_topic_name
@@ -13416,22 +13289,9 @@ paths:
         - **Rotate push key**: Provide only the push key fields.
         - **Rotate token**: Provide only the token fields.
 
-        On a successful registration, the server automatically removes
-        any legacy push device registration with a matching token for
-        the user. For self-hosted servers, if removing the legacy
-        registration from the push notification bouncer fails (e.g.,
-        due to a network error), legacy notifications to that token
-        will continue until all of the user's legacy registrations
-        have been removed from the local server, at which point the
-        server will stop sending legacy notification requests to the
-        bouncer entirely.
-
-        **Changes**: In Zulip 12.0 (feature level 483),
-        the server began automatically removing legacy registrations
-        with a matching token on successful E2EE registration.
-
-        In Zulip 12.0 (feature level 468), the endpoint was significantly
-        redesigned to support rotation of `push_key` and token provided by FCM/APNs.
+        **Changes**: In Zulip 12.0 (feature level 468), the endpoint
+        was significantly redesigned to support rotation of `push_key` and
+        token provided by FCM/APNs.
 
         New in Zulip 11.0 (feature level 406).
       requestBody:
@@ -14432,174 +14292,6 @@ paths:
                         "result": "success",
                         "server_timestamp": 1656958539.6287155,
                       }
-  /realm/domains:
-    get:
-      operationId: get-realm-domains
-      summary: Get allowed domains
-      tags: ["server_and_organizations"]
-      description: |
-        Get the set of allowed domains configured in the organization for user
-        account email addresses.
-
-        As each Zulip user account is associated with an email address, organization
-        owners can [restrict new account creation (and email
-        changes)](/help/restrict-account-creation) to email addresses with these
-        domains.
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/JsonSuccessBase"
-                  - additionalProperties: false
-                    properties:
-                      result: {}
-                      msg: {}
-                      ignored_parameters_unsupported: {}
-                      domains:
-                        type: array
-                        description: |
-                          A list of objects containing details of each domain allowed
-                          for user account email addresses.
-                        items:
-                          $ref: "#/components/schemas/RealmDomain"
-                    example:
-                      {
-                        "result": "success",
-                        "msg": "",
-                        "domains":
-                          [
-                            {
-                              "domain": "example.com",
-                              "allow_subdomains": false,
-                            },
-                          ],
-                      }
-    post:
-      operationId: add-realm-domain
-      summary: Add an allowed domain
-      tags: ["server_and_organizations"]
-      description: |
-        Add a domain to the set of allowed domains configured in the organization
-        for [user account email addresses](/help/restrict-account-creation).
-
-        **Changes**: Prior to Zulip 6.0 (feature level 143), organization
-        administrators who were not owners could access this endpoint.
-      x-requires-owner: true
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                domain:
-                  description: |
-                    The new domain.
-
-                    **Changes**: In Zulip 4.0 (feature level 63), the unnecessary
-                    JSON-encoding of this parameter was removed.
-                  type: string
-                  example: "example.com"
-                allow_subdomains:
-                  description: |
-                    Whether subdomains are allowed for this domain.
-                  type: boolean
-                  example: false
-              required:
-                - domain
-                - allow_subdomains
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/JsonSuccessBase"
-                  - additionalProperties: false
-                    properties:
-                      result: {}
-                      msg: {}
-                      ignored_parameters_unsupported: {}
-                      new_domain:
-                        type: array
-                        description: |
-                          An array containing the ID of the newly added domain
-                          and the submitted domain name string.
-                        items:
-                          oneOf:
-                            - type: integer
-                            - type: string
-                    example:
-                      {
-                        "result": "success",
-                        "msg": "",
-                        "new_domain": [1, "example.com"],
-                      }
-  /realm/domains/{domain}:
-    patch:
-      operationId: patch-realm-domain
-      summary: Update an allowed domain
-      tags: ["server_and_organizations"]
-      description: |
-        Update whether subdomains are allowed in [user account email
-        addresses](/help/restrict-account-creation) for the specified domain.
-
-        **Changes**: Prior to Zulip 6.0 (feature level 143), organization
-        administrators who were not owners could access this endpoint.
-      x-requires-owner: true
-      parameters:
-        - name: domain
-          in: path
-          description: |
-            The domain to update.
-          schema:
-            type: string
-            example: "example.com"
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                allow_subdomains:
-                  description: |
-                    Whether subdomains are allowed for this domain.
-                  type: boolean
-                  example: true
-              required:
-                - allow_subdomains
-      responses:
-        "200":
-          $ref: "#/components/responses/SimpleSuccess"
-    delete:
-      operationId: delete-realm-domain
-      summary: Remove an allowed domain
-      tags: ["server_and_organizations"]
-      description: |
-        Remove the specified domain from the set of allowed domains configured in
-        the organization for [user account email addresses](/help/restrict-account-creation).
-
-        **Changes**: Prior to Zulip 6.0 (feature level 143), organization
-        administrators who were not owners could access this endpoint.
-      x-requires-owner: true
-      parameters:
-        - name: domain
-          in: path
-          description: |
-            The domain to remove.
-          schema:
-            type: string
-            example: "example.com"
-          required: true
-      responses:
-        "200":
-          $ref: "#/components/responses/SimpleSuccess"
   /realm/profile_fields:
     get:
       operationId: get-custom-profile-fields
@@ -16547,6 +16239,53 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/SimpleSuccess"
+  /export/realm/{export_id}:
+    delete:
+      description: |
+        Delete a completed realm export.
+      operationId: delete-realm-export
+      summary: Delete a data export
+      tags:
+        - server_and_organizations
+      parameters:
+        - name: export_id
+          in: path
+          description: The ID of the export to be deleted.
+          required: true
+          schema:
+            type: integer
+          example: 3
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                description: A successful response.
+                type: object
+                additionalProperties: false
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - success
+                  msg:
+                    type: string
+                example:
+                  result: success
+                  msg: ""
+        "400":
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedError"
+              examples:
+                invalid_export_id:
+                  value:
+                    result: error
+                    msg: Invalid data export ID
+                    code: BAD_REQUEST
   /export/realm:
     get:
       operationId: get-realm-exports
@@ -17423,12 +17162,12 @@ paths:
         ["events" endpoint](/api/get-events) to request events from
         the Zulip server using long-polling.
 
-        The server will queue events for up to `idle_queue_timeout_secs`
-        seconds of inactivity. After that timeout, your event queue will be
-        garbage-collected. The server will send `heartbeat` events
-        every minute, which makes it easy to implement a robust client that
-        does not miss events unless the client loses network connectivity
-        with the Zulip server for longer than the configured timeout.
+        The server will queue events for up to 10 minutes of inactivity.
+        After 10 minutes, your event queue will be garbage-collected. The
+        server will send `heartbeat` events every minute, which makes it easy
+        to implement a robust client that does not miss events unless the
+        client loses network connectivity with the Zulip server for 10 minutes
+        or longer.
 
         Once the server garbage-collects your event queue, the server will
         [return an error](/api/get-events#bad_event_queue_id-errors)
@@ -17436,7 +17175,7 @@ paths:
         the event queue. Your software will need to handle that error
         condition by re-initializing itself (e.g. this is what triggers your
         browser reloading the Zulip web app when your laptop comes back online
-        after being offline for more than `idle_queue_timeout_secs` seconds).
+        after being offline for more than 10 minutes).
 
         When prototyping with this API, we recommend first calling `register`
         with no `event_types` parameter to see all the available data from all
@@ -17451,12 +17190,7 @@ paths:
         works, avoids clients needing to worry about large classes of
         potentially messy races, etc.
 
-        **Changes**: New in Zulip 12.0 (feature level 481),
-        the `idle_queue_timeout` request parameter and `idle_queue_timeout_secs`
-        response field were added to allow clients to configure
-        how long the server keeps an event queue alive during inactivity.
-
-        Removed `dense_mode` setting in Zulip 10.0 (feature level 364)
+        **Changes**: Removed `dense_mode` setting in Zulip 10.0 (feature level 364)
         as we now have `web_font_size_px` and `web_line_height_percent`
         settings for more control.
 
@@ -17720,28 +17454,6 @@ paths:
                   example: ["message"]
                 narrow:
                   $ref: "#/components/schemas/Narrow"
-                idle_queue_timeout:
-                  description: |
-                    At least how long (in seconds) the server should keep the event
-                    queue alive when the client is not polling. If the client does
-                    not poll before this timeout, the queue will eventually be
-                    garbage-collected.
-
-                    Alternatively, the string `"mobile"` can be passed to use the
-                    server's recommended timeout for mobile clients. This is
-                    currently 12 hours, but may change in the future.
-
-                    If not specified, the server uses a default of 10 minutes. The
-                    maximum allowed value is 7 days.
-
-                    **Changes**: New in Zulip 12.0 (feature level 481).
-                  oneOf:
-                    - type: integer
-                      minimum: 1
-                    - type: string
-                      enum:
-                        - "mobile"
-                  example: 3600
             encoding:
               apply_markdown:
                 contentType: application/json
@@ -17756,8 +17468,6 @@ paths:
               client_capabilities:
                 contentType: application/json
               fetch_event_types:
-                contentType: application/json
-              idle_queue_timeout:
                 contentType: application/json
               narrow:
                 contentType: application/json
@@ -17782,18 +17492,6 @@ paths:
 
                           Will be `null` only for unauthenticated access in realms that have
                           enabled the [public access option](/help/public-access-option).
-                      idle_queue_timeout_secs:
-                        type: integer
-                        description: |
-                          The effective idle queue timeout for the allocated queue,
-                          in seconds. This is the resolved value of the
-                          `idle_queue_timeout` request parameter, after applying
-                          defaults and server-side limits.
-
-                          Not present for unauthenticated access in realms that have
-                          enabled the [public access option](/help/public-access-option).
-
-                          **Changes**: New in Zulip 12.0 (feature level 481).
                       last_event_id:
                         type: integer
                         description: |
@@ -18143,7 +17841,7 @@ paths:
 
                           **Changes**: New in Zulip 11.0 (feature level 399).
                         items:
-                          $ref: "#/components/schemas/Reminder"
+                          $ref: "#/components/schemas/ScheduledMessage"
 
                       muted_topics:
                         type: array
@@ -18249,8 +17947,8 @@ paths:
                         description: |
                           Present if `realm_domains` is present in `fetch_event_types`.
 
-                          An array of dictionaries where each dictionary describes an allowed domain
-                          for [user account email addresses](/help/restrict-account-creation).
+                          An array of dictionaries where each dictionary describes a domain within
+                          which users can join the organization without and invitation.
                         items:
                           $ref: "#/components/schemas/RealmDomain"
                       realm_emoji:
@@ -21176,8 +20874,8 @@ paths:
                           Present if `realm` is present in `fetch_event_types`.
 
                           Recommended client-side HTTP request timeout for [`GET /events`](/api/get-events) calls.
-                          This is guaranteed to be somewhat greater than the heartbeat timeout. It is important
-                          that clients respect this parameter, so that increases in the heartbeat timeout do not
+                          This is guaranteed to be somewhat greater than the heartbeat frequency. It is important
+                          that clients respect this parameter, so that increases in the heartbeat frequency do not
                           break clients.
 
                           **Changes**: New in Zulip 5.0 (feature level 74). Previously,
@@ -22121,7 +21819,6 @@ paths:
                         "last_event_id": -1,
                         "msg": "",
                         "queue_id": "fb67bf8a-c031-47cc-84cf-ed80accacda8",
-                        "idle_queue_timeout_secs": 600,
                         "realm_emoji":
                           {
                             "1":
@@ -23403,9 +23100,6 @@ paths:
       tags: ["channels"]
       description: |
         Get all users subscribed to a channel.
-
-        **Changes**: Before Zulip 12.0 (feature level 480), this
-        endpoint was not supported for archived channels.
       parameters:
         - $ref: "#/components/parameters/ChannelIdInPath"
       responses:
@@ -23719,10 +23413,7 @@ paths:
       description: |
         Fetch details for the channel with the ID `stream_id`.
 
-        **Changes**: Before Zulip 12.0 (feature level 480), this
-        endpoint was not supported for archived channels.
-
-        New in Zulip 6.0 (feature level 132).
+        **Changes**: New in Zulip 6.0 (feature level 132).
       parameters:
         - $ref: "#/components/parameters/ChannelIdInPath"
       responses:
@@ -27356,18 +27047,17 @@ components:
     RealmDomain:
       type: object
       additionalProperties: false
+      description: |
+        Object containing details of the newly added domain.
       properties:
         domain:
           type: string
           description: |
-            The allowed domain.
+            The new allowed domain.
         allow_subdomains:
           type: boolean
           description: |
             Whether subdomains are allowed for this domain.
-      required:
-        - domain
-        - allow_subdomains
     RealmPlayground:
       type: object
       additionalProperties: false
@@ -28329,16 +28019,9 @@ components:
 
             See the help center article on [message formatting](/help/format-your-message-using-markdown) for details on Zulip-flavored Markdown.
         display_recipient:
-          description: |
-            Data on the recipient of the message. Will be one of the following:
           oneOf:
             - type: string
-              description: |
-                The name of the channel the message was received in.
             - type: array
-              description: |
-                An array of dictionaries containing basic data on the users who
-                received the message.
               items:
                 type: object
                 additionalProperties: false
@@ -28359,6 +28042,10 @@ components:
                     type: boolean
                     description: |
                       Whether the user is a mirror dummy.
+          description: |
+            Data on the recipient of the message;
+            either the name of a channel or a dictionary containing basic data on
+            the users who received the message.
         edit_history:
           type: array
           items:
@@ -28520,13 +28207,7 @@ components:
             message (either a channel or group of users). Useful primarily
             for hashing.
 
-            **Changes**: In Zulip 12.0 (feature level 482),
-            `recipient_id` in 1:1 direct messages changed to a new
-            value; it still has the semantics of "the 1:1 conversation
-            with a specific user," but the raw value changed due to
-            internal changes.
-
-            Before Zulip 10.0 (feature level 327), `recipient_id`
+            **Changes**: Before Zulip 10.0 (feature level 327), `recipient_id`
             was the same across all incoming 1:1 direct messages. Now, each
             incoming message uniquely shares a `recipient_id` with outgoing
             messages in the same conversation.
@@ -28777,9 +28458,10 @@ components:
       properties:
         id:
           type: integer
-          readOnly: true
           description: |
-            The unique ID of the draft.
+            The unique ID of the draft. It will only used whenever the drafts are
+            fetched. This field should not be specified when the draft is being
+            created or edited.
         type:
           type: string
           description: |
@@ -29335,37 +29017,6 @@ components:
               as are used for message content.
 
               See [Markdown message formatting](/api/message-formatting) for details on Zulip's HTML format.
-    ProfileDataUpdate:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: integer
-          description: |
-            The ID of the custom profile field to update.
-        value:
-          description: |
-            The new value for the user of the specified custom profile field.
-
-            If null, then any value already set for the specified custom
-            profile field will be removed.
-          oneOf:
-            - type: string
-              nullable: true
-              description: |
-                A string value that matches the [type of the custom profile
-                field](/help/custom-profile-fields#profile-field-types), e.g., if the
-                profile field type is a link then the string must be a URL.
-
-            - type: array
-              items:
-                type: integer
-              description: |
-                An array of integer user IDs, which is for the **Users** type of
-                [custom profile field](/help/custom-profile-fields#profile-field-types).
-      required:
-        - id
-        - value
     ChannelFolder:
       type: object
       additionalProperties: false
@@ -30526,11 +30177,10 @@ components:
                 example: 400
               profile_data:
                 description: |
-                  An array of objects describing updates to the [custom profile
-                  field](/help/custom-profile-fields) data for the user.
+                  A dictionary containing the updated custom profile field data for the user.
                 type: array
                 items:
-                  $ref: "#/components/schemas/ProfileDataUpdate"
+                  type: object
                 example:
                   [{"id": 4, "value": "0"}, {"id": 5, "value": "1909-04-05"}]
               new_email:
