@@ -340,6 +340,9 @@ export function initialize_custom_date_type_fields(
         allowInvalidPreload: true,
         onChange(_selected_dates, date_str, instance) {
             update_date(instance, date_str);
+            $(instance.element)
+                .closest(".custom_user_field")
+                .toggleClass("has-date", date_str !== "" && date_str !== "Invalid Date");
         },
     });
 
@@ -376,23 +379,25 @@ export function initialize_custom_date_type_fields(
         });
 
     $(element_id)
-        .find<HTMLInputElement>(".custom_user_field input.datepicker")
-        .on("mouseenter", function () {
-            if ($(this).val()!.length <= 0) {
-                $(this).parent().find(".remove_date").hide();
-            } else {
-                $(this).parent().find(".remove_date").show();
+        .find(".custom_user_field .remove_date")
+        .on("click", function () {
+            const $displayed_input = $(this).parent().find(".date-field-alt-input");
+            if (String($displayed_input.val() ?? "").length <= 0) {
+                return;
             }
+            const $custom_user_field = $(this).parent().find(".custom_user_field_value");
+            $displayed_input.val("");
+            $custom_user_field.val("");
+            $(this).closest(".custom_user_field").removeClass("has-date");
+            $custom_user_field.trigger("input");
         });
 
     $(element_id)
-        .find(".custom_user_field .remove_date")
-        .on("click", function () {
-            const $custom_user_field = $(this).parent().find(".custom_user_field_value");
-            const $displayed_input = $(this).parent().find(".date-field-alt-input");
-            $displayed_input.val("");
-            $custom_user_field.val("");
-            $custom_user_field.trigger("input");
+        .find(".custom_user_field")
+        .each(function () {
+            const hasValue =
+                String($(this).find(".custom_user_field_value.datepicker").val() ?? "").length > 0;
+            $(this).toggleClass("has-date", hasValue);
         });
 }
 
