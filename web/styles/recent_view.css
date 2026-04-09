@@ -31,7 +31,11 @@
     border: 1px solid var(--color-border-recent-view-table);
     border-top: none;
     border-radius: 0 0 5px 5px;
-    overflow: hidden;
+
+    /* Clip the last row's background to the table's rounded bottom corners. */
+    & tr:last-child {
+        border-radius: 0 0 5px 5px;
+    }
 }
 
 #recent_view {
