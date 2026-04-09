@@ -395,6 +395,22 @@ export function initialize(): void {
         // tooltips showing and hiding rapidly
         delay: [300, 20],
         onShow(instance) {
+            const preview_area = instance.reference.closest("#compose .preview_message_area");
+            if (preview_area) {
+                instance.setProps({
+                    popperOptions: {
+                        modifiers: [
+                            {
+                                name: "eventListeners",
+                                options: {
+                                    scroll: false,
+                                },
+                            },
+                        ],
+                    },
+                });
+            }
+
             // Some message images do not include a title, such as YouTube
             // video previews, so we fall back to displaying the href value
             const title =
