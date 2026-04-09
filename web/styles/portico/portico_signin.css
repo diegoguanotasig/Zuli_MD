@@ -40,11 +40,11 @@ html {
     font-size: 0.9em;
 
     & a {
-        color: hsl(164deg 100% 23%);
+        color: hsl(200deg 100% 40%);
 
         &:hover {
             text-decoration: none;
-            color: hsl(156deg 62% 61%);
+            color: hsl(200deg 100% 25%);
         }
     }
 }
@@ -72,11 +72,11 @@ html {
     font-size: 1.2em;
 
     & a {
-        color: hsl(164deg 100% 23%);
+        color: hsl(200deg 100% 40%);
 
         &:hover {
             text-decoration: none;
-            color: hsl(156deg 62% 61%);
+            color: hsl(200deg 100% 25%);
         }
     }
 }
@@ -430,23 +430,27 @@ html {
         box-sizing: border-box;
         outline: none;
         color: hsl(0deg 0% 100%);
-        background-color: hsl(213deg 23% 25%);
+        background-color: hsl(240deg 55% 42%);
 
         margin: 25px 0 5px;
-        height: 50px;
+        height: 48px;
 
         border: none;
         border-radius: 4px;
 
-        transition: 0.3s ease;
-        transition-property: background-color, outline;
+        clip-path: inset(-1px);
+        transition: 0.05s ease-in;
+        transition-property: background-color, clip-path;
 
         &:hover {
-            background-color: hsl(213deg 33% 31%);
+            background-color: hsl(240deg 55% 37%);
+            transition: 0.1s ease-out;
+            transition-property: background-color, clip-path;
         }
 
         &:active {
-            background-color: hsl(214deg 28% 16%);
+            background-color: hsl(240deg 55% 32%);
+            clip-path: inset(1px round 4px);
         }
 
         &:focus {
@@ -515,7 +519,9 @@ html {
         input[type="url"],
         textarea,
         select {
-            padding: 10px 32px 10px 12px;
+            /* 10.5px vertical padding + 2px border + content
+               height gives 48px, matching the button height. */
+            padding: 10.5px 32px 10.5px 12px;
             margin: 25px 0 5px;
 
             font-family: "Source Sans 3 VF", sans-serif;
@@ -609,6 +615,9 @@ html {
         /* The width of the "Organization name" text box
            right above this one is also 326px. */
         & select {
+            /* Browsers default select to border-box, so
+               an explicit height includes padding and border. */
+            height: 48px;
             width: 326px;
             cursor: pointer;
         }
@@ -638,6 +647,13 @@ html {
             font-weight: 600;
             padding-left: 0;
         }
+    }
+
+    .input-box.horizontal > .inline-block + button {
+        /* Add standard 8px gap between inline input and
+           button. The ~3px of inline-block whitespace is
+           already present, so 5px margin completes it. */
+        margin-left: 5px;
     }
 
     .lead {
@@ -876,7 +892,7 @@ html {
 
 button.login-social-button {
     width: 328px;
-    height: auto;
+    height: 48px;
     /* Using 16% gives us space between text and icon so that they don't overlap. */
     padding-left: 16%;
     line-height: 1;
@@ -885,22 +901,22 @@ button.login-social-button {
     background-repeat: no-repeat;
     background-position: 13px 50%;
     background-color: hsl(0deg 0% 100%);
-    box-shadow:
-        0 1px 3px hsl(0deg 0% 0% / 30%),
-        0 0 5px hsl(0deg 0% 0% / 10%);
+    box-shadow: 0 0 0.5px 0.5px
+        color-mix(in oklch, hsl(0deg 0% 0%) 40%, transparent) inset;
     margin-left: 0;
     margin-top: 0;
 
     color: hsl(0deg 0% 34%);
 
     &:hover {
-        background-color: hsl(0deg 0% 98%);
-        box-shadow: 1px 2px 5px hsl(0deg 0% 0% / 20%);
+        background-color: hsl(0deg 0% 97%);
+        transition: 0.1s ease-out;
+        transition-property: background-color, clip-path;
     }
 
     &:active {
         background-color: hsl(0deg 0% 93%);
-        box-shadow: 0 1px 1px hsl(0deg 0% 0% / 30%);
+        clip-path: inset(1px round 4px);
     }
 }
 
@@ -957,7 +973,7 @@ button#register_auth_button_gitlab {
 
 .split-view .actions a,
 .back-to-login {
-    color: hsl(164deg 100% 23%);
+    color: hsl(200deg 100% 40%);
     text-decoration: none;
     font-weight: 600;
     font-size: 0.8em;
@@ -968,7 +984,7 @@ button#register_auth_button_gitlab {
 
     &:hover {
         text-decoration: none;
-        color: hsl(156deg 62% 61%);
+        color: hsl(200deg 100% 25%);
     }
 }
 
@@ -1467,7 +1483,7 @@ button#register_auth_button_gitlab {
                 margin: 20px 0;
 
                 & a {
-                    color: hsl(200deg 100% 36%);
+                    color: hsl(200deg 100% 40%);
                 }
             }
         }
@@ -1656,7 +1672,7 @@ button#register_auth_button_gitlab {
     &:hover,
     &:focus {
         cursor: pointer;
-        color: hsl(200.16deg 100% 25.1%);
+        color: hsl(200deg 100% 25%);
         text-decoration: underline;
     }
 }
