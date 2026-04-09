@@ -718,6 +718,12 @@ INCOMING_WEBHOOK_INTEGRATIONS: list[IncomingWebhookIntegration] = [
         url_options=[WebhookUrlOption.build_preset_config(PresetUrlOption.BRANCHES)],
     ),
     IncomingWebhookIntegration(
+        "gong",
+        ["marketing"],
+        [WebhookScreenshotConfig("gong_payload.json")],
+        display_name="Gong",
+    ),
+    IncomingWebhookIntegration(
         "gosquared",
         ["marketing"],
         [WebhookScreenshotConfig("traffic_spike.json")],
