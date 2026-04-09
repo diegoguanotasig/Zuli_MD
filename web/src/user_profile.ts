@@ -513,6 +513,21 @@ export function get_custom_profile_field_data(
             profile_field.value = field_choice_dict[field_value.value]!.text;
             break;
         }
+        case field_types.SELECT_MULTIPLE.id: {
+            const field_data = settings_components.select_field_data_schema.parse(
+                JSON.parse(field.field_data),
+            );
+            const selected_ids = z.array(z.string()).parse(JSON.parse(field_value.value));
+
+            const readable_values: string[] = [];
+            for (const id of selected_ids) {
+                const option = field_data[id]!;
+                readable_values.push(option.text);
+            }
+
+            profile_field.value = util.format_array_as_list(readable_values, "long", "conjunction");
+            break;
+        }
         case field_types.SHORT_TEXT.id:
         case field_types.LONG_TEXT.id:
             profile_field.value = field_value.value;
@@ -1153,7 +1168,7 @@ export function show_edit_bot_info_modal(user_id: number, $container: JQuery): v
 
 function get_human_profile_data(fields_user_pills: Map<number, user_pill.UserPillWidget>): {
     id: number;
-    value: number[];
+    value: string | number[] | string[];
 }[] {
     /*
         This formats custom profile field data to send to the server.
@@ -1163,12 +1178,25 @@ function get_human_profile_data(fields_user_pills: Map<number, user_pill.UserPil
         TODO: Ideally, this logic would be cleaned up or deduplicated with
         the settings_account.ts logic.
     */
-    const new_profile_data = [];
+    const new_profile_data: {id: number; value: string | number[] | string[]}[] = [];
     $("#edit-user-form .custom_user_field_value").each(function () {
+        const value = $(this).val();
+        assert(typeof value === "string");
         new_profile_data.push({
             id: Number.parseInt($(this).closest(".custom_user_field").attr("data-field-id")!, 10),
-            value: $(this).val(),
+            value,
         });
+    });
+    $("#edit-user-form .custom_user_field_value_multiple_container").each(function () {
+        const field_id = Number.parseInt(
+            $(this).closest(".custom_user_field").attr("data-field-id")!,
+            10,
+        );
+        const values = $(this)
+            .find<HTMLInputElement>("input:checked")
+            .map((_i, elem) => elem.value)
+            .get();
+        new_profile_data.push({id: field_id, value: values});
     });
     // Append user type field values also
     for (const [field_id, field_pills] of fields_user_pills) {
@@ -1188,8 +1216,18 @@ function get_current_values(
     $edit_form: JQuery,
 ): Record<string, unknown> & {user_id?: string | undefined} {
     const raw_current_values = dialog_widget.get_current_values(
-        $edit_form.find("input:not(.datepicker), select, textarea, button, .pill-container"),
+        $edit_form.find(
+            "input:not(.datepicker, .custom_user_field_value_multiple), select, textarea, button, .pill-container",
+        ),
     );
+    $edit_form.find(".custom_user_field_value_multiple_container").each(function () {
+        const name = $(this).find("input").attr("name");
+        assert(name !== undefined);
+        raw_current_values[name] = $(this)
+            .find<HTMLInputElement>("input:checked")
+            .map((_i, elem) => elem.value)
+            .get();
+    });
     const schema = z.intersection(
         z.object({
             user_id: z.optional(z.string()),

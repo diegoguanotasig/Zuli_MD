@@ -76,6 +76,7 @@ def try_add_realm_custom_profile_field(
     if custom_profile_field.field_type in (
         CustomProfileField.SELECT,
         CustomProfileField.EXTERNAL_ACCOUNT,
+        CustomProfileField.SELECT_MULTIPLE,
     ):
         custom_profile_field.field_data = orjson.dumps(field_data or {}).decode()
 
@@ -108,7 +109,26 @@ def remove_custom_profile_field_value_if_required(
     removed_values = old_values - new_values
 
     if removed_values:
-        CustomProfileFieldValue.objects.filter(field=field, value__in=removed_values).delete()
+        if field.field_type == CustomProfileField.SELECT:
+            CustomProfileFieldValue.objects.filter(field=field, value__in=removed_values).delete()
+        elif field.field_type == CustomProfileField.SELECT_MULTIPLE:
+            values_to_update = []
+            ids_to_delete = []
+
+            for field_value in CustomProfileFieldValue.objects.filter(field=field):
+                val_list = orjson.loads(field_value.value)
+                new_val_list = [v for v in val_list if v not in removed_values]
+
+                if not new_val_list:
+                    ids_to_delete.append(field_value.id)
+                elif len(new_val_list) < len(val_list):
+                    field_value.value = orjson.dumps(new_val_list).decode()
+                    values_to_update.append(field_value)
+
+            if ids_to_delete:
+                CustomProfileFieldValue.objects.filter(id__in=ids_to_delete).delete()
+            if values_to_update:
+                CustomProfileFieldValue.objects.bulk_update(values_to_update, ["value"])
 
 
 @transaction.atomic(durable=True)
@@ -139,10 +159,14 @@ def try_update_realm_custom_profile_field(
     if field.field_type in (
         CustomProfileField.SELECT,
         CustomProfileField.EXTERNAL_ACCOUNT,
+        CustomProfileField.SELECT_MULTIPLE,
     ):
         # If field_data is None, field_data is unchanged and there is no need for
         # comparing field_data values.
-        if field_data is not None and field.field_type == CustomProfileField.SELECT:
+        if field_data is not None and field.field_type in (
+            CustomProfileField.SELECT,
+            CustomProfileField.SELECT_MULTIPLE,
+        ):
             remove_custom_profile_field_value_if_required(field, field_data)
 
         # If field.field_data is the default empty string, we will set field_data
@@ -167,7 +191,7 @@ def try_reorder_realm_custom_profile_fields(realm: Realm, order: Iterable[int]) 
 
 
 def notify_user_update_custom_profile_data(
-    user_profile: UserProfile, field: dict[str, int | str | list[int] | None]
+    user_profile: UserProfile, field: dict[str, int | str | list[int] | list[str] | None]
 ) -> None:
     data = dict(id=field["id"], value=field["value"])
 
@@ -250,6 +274,11 @@ def get_custom_profile_field_display_value(field_value: CustomProfileFieldValue)
         field_data_dict = orjson.loads(field_value.field.field_data)
         value_key = field_value.value
         return field_data_dict[value_key]["text"]
+
+    if type == CustomProfileField.SELECT_MULTIPLE:
+        field_data_dict = orjson.loads(field_value.field.field_data)
+        value_keys = orjson.loads(field_value.value)
+        return ", ".join(field_data_dict[str(key)]["text"] for key in value_keys)
 
     if type == CustomProfileField.USER:
         user_ids = orjson.loads(field_value.value)

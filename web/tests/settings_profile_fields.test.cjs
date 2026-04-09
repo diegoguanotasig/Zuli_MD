@@ -14,12 +14,14 @@ const SELECT_ID = 3;
 const EXTERNAL_ACCOUNT_ID = 7;
 const LONG_TEXT_ID = 2;
 const USER_FIELD_ID = 6;
+const SELECT_MULTIPLE_ID = 9;
 
 const SHORT_TEXT_NAME = "Short text";
 const SELECT_NAME = "Dropdown";
 const EXTERNAL_ACCOUNT_NAME = "External account";
 const LONG_TEXT_NAME = "Paragraph";
 const USER_FIELD_NAME = "Person";
+const SELECT_MULTIPLE_NAME = "Select multiple";
 
 const custom_profile_field_types = {
     SHORT_TEXT: {
@@ -41,6 +43,10 @@ const custom_profile_field_types = {
     USER: {
         id: USER_FIELD_ID,
         name: USER_FIELD_NAME,
+    },
+    SELECT_MULTIPLE: {
+        id: SELECT_MULTIPLE_ID,
+        name: SELECT_MULTIPLE_NAME,
     },
 };
 
@@ -157,8 +163,6 @@ run_test("populate_profile_fields", ({mock_template, override}) => {
                 hint: "blue?",
                 type: SHORT_TEXT_NAME,
                 choices: [],
-                is_select_field: false,
-                is_external_account_field: false,
                 display_in_profile_summary: false,
                 valid_to_display_in_summary: true,
                 required: false,
@@ -176,8 +180,6 @@ run_test("populate_profile_fields", ({mock_template, override}) => {
                     {order: "0", value: "0", text: "lunch"},
                     {order: "1", value: "1", text: "dinner"},
                 ],
-                is_select_field: true,
-                is_external_account_field: false,
                 display_in_profile_summary: false,
                 valid_to_display_in_summary: true,
                 required: false,
@@ -192,8 +194,6 @@ run_test("populate_profile_fields", ({mock_template, override}) => {
                 hint: "username only",
                 type: EXTERNAL_ACCOUNT_NAME,
                 choices: [],
-                is_select_field: false,
-                is_external_account_field: true,
                 display_in_profile_summary: true,
                 valid_to_display_in_summary: true,
                 required: false,
@@ -208,8 +208,6 @@ run_test("populate_profile_fields", ({mock_template, override}) => {
                 hint: "username only",
                 type: EXTERNAL_ACCOUNT_NAME,
                 choices: [],
-                is_select_field: false,
-                is_external_account_field: true,
                 display_in_profile_summary: true,
                 valid_to_display_in_summary: true,
                 required: false,

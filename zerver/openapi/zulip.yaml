@@ -12169,7 +12169,11 @@ paths:
                     field data for the user.
                   type: array
                   example:
-                    [{"id": 4, "value": "0"}, {"id": 5, "value": "1909-04-05"}]
+                    [
+                      {"id": 4, "value": "0"},
+                      {"id": 5, "value": ["0", "1"]},
+                      {"id": 6, "value": "1909-04-05"},
+                    ]
                   items:
                     $ref: "#/components/schemas/ProfileDataUpdate"
               required:
@@ -14755,7 +14759,7 @@ paths:
                   type: array
                   items:
                     type: integer
-                  example: [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+                  example: [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
               required:
                 - order
             encoding:
@@ -29363,6 +29367,16 @@ components:
               description: |
                 An array of integer user IDs, which is for the **Users** type of
                 [custom profile field](/help/custom-profile-fields#profile-field-types).
+
+            - type: array
+              minItems: 1
+              items:
+                type: string
+              description: |
+                An array of string values, which is for the **Select multiple** type of
+                [custom profile field](/help/custom-profile-fields#profile-field-types).
+
+                **Changes**: New in Zulip 12.0 (feature level ZF-37c254).
       required:
         - id
         - value
@@ -30532,7 +30546,11 @@ components:
                 items:
                   $ref: "#/components/schemas/ProfileDataUpdate"
                 example:
-                  [{"id": 4, "value": "0"}, {"id": 5, "value": "1909-04-05"}]
+                  [
+                    {"id": 4, "value": "0"},
+                    {"id": 5, "value": ["0", "1"]},
+                    {"id": 6, "value": "1909-04-05"},
+                  ]
               new_email:
                 description: |
                   New email address for the user. Requires the user making the request
