@@ -86,6 +86,9 @@ from zerver.models import (
 )
 from zerver.tornado.django_api import send_event
 
+# detector topic drift
+from zerver.lib.topic_improver import suggest_topic
+from zerver.models import Message
 
 def compute_irc_user_fullname(email: str) -> str:
     return email.split("@")[0] + " (IRC)"
@@ -748,6 +751,21 @@ def do_send_messages(
     https://zulip.readthedocs.io/en/latest/subsystems/sending-messages.html
     for high-level documentation on this subsystem.
     """
+
+    topic = Message.subject
+
+    recent_messages = Message.objects.filter(
+        subject=topic
+    ).order_by("-id")[:10]
+
+    texts = [m.content for m in recent_messages]
+
+    if len(texts) >= 5 and Message.id % 5 ==0:
+
+     suggestion = suggest_topic(texts)
+
+    print("Suggested new topic:", suggestion)
+
 
     # Filter out messages which didn't pass internal_prep_message properly
     send_message_requests = [
@@ -1655,3 +1673,4 @@ def internal_send_huddle_message(
         return None
     message_ids = do_send_messages([message])
     return message_ids[0]
+

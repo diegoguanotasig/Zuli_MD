@@ -1,6 +1,8 @@
 import os
 from typing import List, Union
 
+
+
 from django.conf import settings
 from django.conf.urls import include
 from django.conf.urls.i18n import i18n_patterns
@@ -11,6 +13,8 @@ from django.contrib.auth.views import (
     PasswordResetDoneView,
 )
 from django.urls import path, re_path
+#Registrar endpoint
+from zerver.views.message_recap import messenge_recap
 from django.urls.resolvers import URLPattern, URLResolver
 from django.utils.module_loading import import_string
 from django.views.generic import RedirectView, TemplateView
