@@ -221,12 +221,12 @@ from zproject.legacy_urls import legacy_urls
 
 if settings.TWO_FACTOR_AUTHENTICATION_ENABLED:
     try:
-        from two_factor.gateways.twilio.urls import urlpatterns as tf_twilio_urls
-    except ImportError:
+        from two_factor.gateways.twilio.urls import urlpatterns as tf_twilio_urls  # type: ignore
+    except (ImportError, ModuleNotFoundError):
         tf_twilio_urls = []
     try:
-        from two_factor.urls import urlpatterns as tf_urls
-    except ImportError:
+        from two_factor.urls import urlpatterns as tf_urls  # type: ignore
+    except (ImportError, ModuleNotFoundError):
         tf_urls = []
 
 # NB: There are several other pieces of code which route requests by URL:
@@ -784,36 +784,39 @@ urls += [path("saml/metadata.xml", saml_sp_metadata)]
 
 # SCIM2
 
-from django_scim import views as scim_views
+try:
+    from django_scim import views as scim_views  # type: ignore
 
-urls += [
-    # Everything below here are features that we don't yet support and we want
-    # to explicitly mark them to return "Not Implemented" rather than running
-    # the django-scim2 code for them.
-    re_path(
-        r"^scim/v2/Groups/.search$",
-        scim_views.SCIMView.as_view(implemented=False),
-    ),
-    re_path(
-        r"^scim/v2/Groups(?:/(?P<uuid>[^/]+))?$",
-        scim_views.SCIMView.as_view(implemented=False),
-    ),
-    re_path(r"^scim/v2/Me$", scim_views.SCIMView.as_view(implemented=False)),
-    re_path(
-        r"^scim/v2/ServiceProviderConfig$",
-        scim_views.SCIMView.as_view(implemented=False),
-    ),
-    re_path(
-        r"^scim/v2/ResourceTypes(?:/(?P<uuid>[^/]+))?$",
-        scim_views.SCIMView.as_view(implemented=False),
-    ),
-    re_path(
-        r"^scim/v2/Schemas(?:/(?P<uuid>[^/]+))?$", scim_views.SCIMView.as_view(implemented=False)
-    ),
-    re_path(r"^scim/v2/Bulk$", scim_views.SCIMView.as_view(implemented=False)),
-    # This registers the remaining SCIM endpoints.
-    path("scim/v2/", include("django_scim.urls", namespace="scim")),
-]
+    urls += [
+        # Everything below here are features that we don't yet support and we want
+        # to explicitly mark them to return "Not Implemented" rather than running
+        # the django-scim2 code for them.
+        re_path(
+            r"^scim/v2/Groups/.search$",
+            scim_views.SCIMView.as_view(implemented=False),
+        ),
+        re_path(
+            r"^scim/v2/Groups(?:/(?P<uuid>[^/]+))?$",
+            scim_views.SCIMView.as_view(implemented=False),
+        ),
+        re_path(r"^scim/v2/Me$", scim_views.SCIMView.as_view(implemented=False)),
+        re_path(
+            r"^scim/v2/ServiceProviderConfig$",
+            scim_views.SCIMView.as_view(implemented=False),
+        ),
+        re_path(
+            r"^scim/v2/ResourceTypes(?:/(?P<uuid>[^/]+))?$",
+            scim_views.SCIMView.as_view(implemented=False),
+        ),
+        re_path(
+            r"^scim/v2/Schemas(?:/(?P<uuid>[^/]+))?$", scim_views.SCIMView.as_view(implemented=False)
+        ),
+        re_path(r"^scim/v2/Bulk$", scim_views.SCIMView.as_view(implemented=False)),
+        # This registers the remaining SCIM endpoints.
+        path("scim/v2/", include("django_scim.urls", namespace="scim")),
+    ]
+except (ImportError, ModuleNotFoundError):
+    pass
 
 # User documentation site
 help_documentation_view = MarkdownDirectoryView.as_view(
