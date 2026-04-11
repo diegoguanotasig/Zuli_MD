@@ -3,7 +3,8 @@ import openai
 def summarize_messages(messages):
 
     prompt = f"""
-    Summarize the following Zulip messages briefly.
+    Summarize these Zulip messages in a short paragraph.
+    Keep important decisions and action items.
 
     Messages:
     {messages}

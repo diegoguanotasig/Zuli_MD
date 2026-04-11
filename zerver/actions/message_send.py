@@ -752,27 +752,29 @@ def do_send_messages(
     for high-level documentation on this subsystem.
     """
 
-    topic = Message.subject
-
-    recent_messages = Message.objects.filter(
-        subject=topic
-    ).order_by("-id")[:10]
-
-    texts = [m.content for m in recent_messages]
-
-    if len(texts) >= 5 and Message.id % 5 ==0:
-
-     suggestion = suggest_topic(texts)
-
-    print("Suggested new topic:", suggestion)
-
-
     # Filter out messages which didn't pass internal_prep_message properly
     send_message_requests = [
         send_request
         for send_request in send_message_requests_maybe_none
         if send_request is not None
     ]
+
+    # Topic drift detection - process messages for topic suggestions
+    for send_request in send_message_requests:
+        message = send_request.message
+        if message.is_stream_message():
+            topic = message.subject
+
+            recent_messages = Message.objects.filter(
+                subject=topic
+            ).order_by("-id")[:10]
+
+            texts = [m.content for m in recent_messages]
+
+            if len(texts) >= 5 and message.id % 5 == 0:
+                suggestion = suggest_topic(texts)
+                # Optionally log or use the suggestion
+                logging.debug("Suggested new topic: %s", suggestion)
 
     # Save the message receipts in the database
     user_message_flags: Dict[int, Dict[int, List[str]]] = defaultdict(dict)
