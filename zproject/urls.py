@@ -14,7 +14,7 @@ from django.contrib.auth.views import (
 )
 from django.urls import path, re_path
 #Registrar endpoint
-from zerver.views.message_recap import messenge_recap
+from zerver.views.message_recap import message_recap
 from django.urls.resolvers import URLPattern, URLResolver
 from django.utils.module_loading import import_string
 from django.views.generic import RedirectView, TemplateView
@@ -220,8 +220,14 @@ from zproject import dev_urls
 from zproject.legacy_urls import legacy_urls
 
 if settings.TWO_FACTOR_AUTHENTICATION_ENABLED:
-    from two_factor.gateways.twilio.urls import urlpatterns as tf_twilio_urls
-    from two_factor.urls import urlpatterns as tf_urls
+    try:
+        from two_factor.gateways.twilio.urls import urlpatterns as tf_twilio_urls
+    except ImportError:
+        tf_twilio_urls = []
+    try:
+        from two_factor.urls import urlpatterns as tf_urls
+    except ImportError:
+        tf_urls = []
 
 # NB: There are several other pieces of code which route requests by URL:
 #
@@ -926,4 +932,7 @@ urls += [
 # The sequence is important; if i18n URLs don't come first then
 # reverse URL mapping points to i18n URLs which causes the frontend
 # tests to fail
-urlpatterns = i18n_patterns(*i18n_urls) + urls + legacy_urls
+# Se agrega un endpoint 
+urlpatterns = i18n_patterns(*i18n_urls) + urls + legacy_urls + [
+    path("json/message_recap", message_recap),
+]
