@@ -44,7 +44,7 @@ jobs:
     name: ${{ matrix.name }}
     container: ${{ matrix.docker_image }}
     env:
-      # GitHub Actions sets HOME to /github/home which causes
+      # GitHub Actions sets HOME to /github/home which causesq
       # problem later in provision and frontend test that runs
       # tools/setup/postgresql-init-dev-db because of the .pgpass
       # location. PostgreSQL (psql) expects .pgpass to be at
